@@ -1,0 +1,1 @@
+"""ATLAS Configuration Package"""
