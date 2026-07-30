@@ -17,8 +17,8 @@ Status: Complete
 - [2026-07-30] Implemented `control/browser.py` Playwright wrappers (`navigate`, `search`, `fill_form`, `read_page`) with standardized dict response schema. Created test suite in `tests/control/test_browser.py` (all 26 control unit tests passing).
 
 ### Phase C — Confirmation Decorator & Face Gate
-Status: Proposed / Ready for Implementation
-- Proposed Plan: Implement `control/confirmation.py` (`@requires_confirmation` decorator wrapper enforcing confirmation rules for sensitive actions), `control/face_gate.py` (local face enrollment/verification encrypted at rest via `cryptography.fernet`), and test suite in `tests/control/test_confirmation.py`.
+Status: Complete
+- [2026-07-30] Implemented `control/confirmation.py` (`@requires_confirmation` decorator wrapper for sensitive actions), `control/face_gate.py` (local face enrollment/verification encrypted at rest via `cryptography.fernet`), and test suite in `tests/control/test_confirmation.py` (all 36 control unit tests passing).
 
 ---
 
