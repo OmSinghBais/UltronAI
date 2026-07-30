@@ -36,7 +36,8 @@ Status: Complete
 
 ## Phone Track (owned by Person C)
 ### Phase A — Android WebSocket Server & Tap/Type Commands
-Status: Not started
+Status: Complete
+- [2026-07-30] Created `atlas-phone-companion` Android Studio project with `AccessibilityControlService`, `CompanionWebSocketServer` (`ws://<phone-ip>:8765`), and setup UI in `MainActivity`. Implemented `tap`, `type`, `open_app`, and `read_screen` handler actions via Accessibility APIs. Implemented `PhoneController` Python WebSocket client in `phone/bridge_server.py`.
 
 ### Phase B — Screen Reader & Element Tree Walking
 Status: Not started
