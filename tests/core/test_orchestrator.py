@@ -6,6 +6,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 from core.orchestrator import Orchestrator
 from core.intents import IntentType
 from core.audit_log import AuditLogger
+from phone.bridge_server import PhoneController
 
 
 @pytest.fixture
@@ -73,3 +74,34 @@ async def test_sensitive_action_cancelled(mock_orchestrator):
     assert res["status"] == "cancelled"
     assert res["reason"] == "not confirmed"
     mock_orchestrator.tts.speak.assert_called_with("Action cancelled.")
+
+
+def test_phone_intent_classification(mock_orchestrator):
+    """Verify phone commands are classified as PHONE_ACTION intent."""
+    intent = mock_orchestrator.classify_intent("tap phone on the home button")
+    assert intent.type == IntentType.PHONE_ACTION
+    assert intent.requires_confirmation is False
+
+    intent_read = mock_orchestrator.classify_intent("read screen now")
+    assert intent_read.type == IntentType.PHONE_ACTION
+
+
+@pytest.mark.asyncio
+async def test_phone_action_no_controller(mock_orchestrator):
+    """Verify graceful error when phone controller not injected."""
+    mock_orchestrator.phone = None
+    res = await mock_orchestrator.process_command("tap phone")
+    assert res["status"] == "error"
+    assert "PhoneController not connected" in res["error"]
+
+
+@pytest.mark.asyncio
+async def test_phone_action_dispatched(mock_orchestrator):
+    """Verify phone action routes to the PhoneController when connected."""
+    mock_phone = MagicMock(spec=PhoneController)
+    mock_phone.read_screen = AsyncMock(return_value={"status": "ok", "content": "Home screen text"})
+    mock_orchestrator.phone = mock_phone
+
+    res = await mock_orchestrator.process_command("read screen now")
+    assert res["status"] == "ok"
+    mock_phone.read_screen.assert_awaited_once()

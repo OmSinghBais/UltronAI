@@ -49,10 +49,38 @@ Status: Complete
 
 ### Phase C — App Launcher, Reconnection & Python Client Tests
 Status: Complete
-- [2026-07-31] Implemented `phone/bridge_server.py` (`PhoneController` Python client) with `tap`, `type_text`, `open_app`, `read_screen`. Added unit tests in `tests/phone/test_bridge_client.py` (6/6 phone tests passing, 42/42 total project tests passing).
+- [2026-07-31] Implemented `phone/bridge_server.py` (`PhoneController` Python client) with `tap`, `type_text`, `open_app`, `read_screen`. Added unit tests in `tests/phone/test_bridge_client.py` (6/6 phone tests passing).
 
 ---
 
-## Integration Phase (all three tracks merge)
-Status: Ready for Final System Integration
-- [2026-07-31] Core Track, Control Track (Person B), and Phone Track (Person C) are 100% complete with unit tests passing. Ready to wire `core/orchestrator.py` to `control/` and `phone/` action dispatchers for end-to-end integration.
+## Integration Phase (all three tracks merged)
+Status: ✅ COMPLETE
+- [2026-07-31] Wired `core/orchestrator.py` to dispatch `PHONE_ACTION` intents to `phone/bridge_server.PhoneController` WebSocket bridge.
+  - Added `phone: Optional[PhoneController]` constructor parameter to `Orchestrator`.
+  - Added `PHONE_ACTION` keyword detection (`tap phone`, `read screen`, `open app on phone`, `type on phone`).
+  - Added `_dispatch_phone_action()` async dispatcher with graceful error if controller not connected.
+  - 3 new orchestrator phone tests added to `tests/core/test_orchestrator.py`.
+- [2026-07-31] Fixed `tests/core/test_voice_loop.py` — replaced network-blocking WhisperModel download with `unittest.mock` patches; `core/stt.py` refactored to expose `WhisperModel` at module level for testability.
+- **Final test count: 59/59 passed in 1.98s (all tracks, all modules, zero network calls).**
+
+---
+
+## Architecture Summary
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                        ATLAS — ULTRON AI                                │
+│                                                                         │
+│  Mic → WakeWord → STT → Orchestrator ──── Router ──→ Gemini / Ollama   │
+│                              │                                          │
+│                    ┌─────────┼──────────┐                              │
+│                    ▼         ▼          ▼                               │
+│              Desktop      Browser    Phone ──→ PhoneController          │
+│              Control      Control    Control   (WebSocket port 8765)    │
+│                    └─────────┴──────────┘                              │
+│                              │                                          │
+│                    ConfirmationGate (sensitive actions)                 │
+│                    AuditLogger (append-only JSONL)                      │
+│                    TTS → Speaker                                        │
+└─────────────────────────────────────────────────────────────────────────┘
+```

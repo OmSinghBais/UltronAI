@@ -1,6 +1,11 @@
 from pathlib import Path
 from typing import Tuple, Union, Optional
 
+try:
+    from faster_whisper import WhisperModel
+except ImportError:
+    WhisperModel = None  # type: ignore
+
 
 class SpeechToText:
     """
@@ -17,7 +22,8 @@ class SpeechToText:
         """Lazy initialization of faster-whisper model."""
         if self.model is None:
             try:
-                from faster_whisper import WhisperModel
+                if WhisperModel is None:
+                    raise ImportError("faster_whisper not available")
                 self.model = WhisperModel(
                     self.model_size,
                     device=self.device,

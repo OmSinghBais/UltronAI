@@ -12,6 +12,7 @@ from core.intents import Intent, IntentType
 
 from control.desktop import open_app, type_text, delete_path, screenshot, click
 from control.browser import navigate, search, fill_form, read_page
+from phone.bridge_server import PhoneController
 
 
 class Orchestrator:
@@ -26,13 +27,15 @@ class Orchestrator:
         stt: Optional[SpeechToText] = None,
         tts: Optional[TextToSpeech] = None,
         router: Optional[Router] = None,
-        audit: Optional[AuditLogger] = None
+        audit: Optional[AuditLogger] = None,
+        phone: Optional[PhoneController] = None
     ):
         self.wake_word = wake_word or WakeWordDetector()
         self.stt = stt or SpeechToText()
         self.tts = tts or TextToSpeech()
         self.router = router or Router()
         self.audit = audit or AuditLogger("./storage/audit.jsonl")
+        self.phone: Optional[PhoneController] = phone  # Injected; None until connect() called
 
     def classify_intent(self, text: str, lang: str = "en") -> Intent:
         """
@@ -56,6 +59,8 @@ class Orchestrator:
 
         if is_sensitive:
             intent_type = IntentType.SENSITIVE_ACTION
+        elif any(k in text_lower for k in ["tap phone", "type on phone", "open app on phone", "read screen", "phone tap"]):
+            intent_type = IntentType.PHONE_ACTION
         elif any(k in text_lower for k in ["open", "type", "click", "launch", "screenshot"]):
             intent_type = IntentType.DESKTOP_ACTION
         elif any(k in text_lower for k in ["browse", "search", "navigate", "go to"]):
@@ -140,6 +145,18 @@ class Orchestrator:
             )
             return result
 
+        elif intent.type == IntentType.PHONE_ACTION:
+            result = await self._dispatch_phone_action(text)
+            self.tts.speak(f"Phone action executed.")
+            self.audit.log(
+                intent=intent,
+                route_used="phone_control",
+                result=str(result),
+                blocked=False,
+                latency_ms=(time.time() - start_time) * 1000
+            )
+            return result
+
         else:
             response, route = await self.router.route(text)
             self.tts.speak(response)
@@ -170,3 +187,30 @@ class Orchestrator:
             target_path = text_lower.split("delete")[-1].strip()
             return delete_path(target_path)
         return {"status": "ok", "action": f"executed sensitive: {text}"}
+
+    async def _dispatch_phone_action(self, text: str) -> Dict[str, Any]:
+        """
+        Dispatches PHONE_ACTION intents to the PhoneController WebSocket bridge.
+        Requires self.phone to be an already-connected PhoneController instance.
+        """
+        if self.phone is None:
+            return {
+                "status": "error",
+                "error": "PhoneController not connected. Call orchestrator.phone = PhoneController() and await phone.connect() first."
+            }
+        text_lower = text.lower()
+        try:
+            if "tap phone" in text_lower or "phone tap" in text_lower:
+                return await self.phone.tap(x=500, y=1000)
+            elif "type on phone" in text_lower:
+                content = text_lower.split("type on phone")[-1].strip()
+                return await self.phone.type_text(content)
+            elif "open app on phone" in text_lower:
+                package = text_lower.split("open app on phone")[-1].strip()
+                return await self.phone.open_app(package)
+            elif "read screen" in text_lower:
+                return await self.phone.read_screen()
+            else:
+                return {"status": "error", "error": f"Unknown phone action: {text}"}
+        except Exception as e:
+            return {"status": "error", "error": f"Phone action failed: {str(e)}"}
