@@ -18,3 +18,12 @@
   - [x] Confirm SpeechToText transcribes audio to text + language tuple.
   - [x] Confirm TextToSpeech synthesizes WAV file.
   - [x] Confirm AuditLogger logs voice echo action.
+
+## Phase 3
+- **Automated Tests**:
+  - `tests/core/test_router.py`: 3 passed (`test_falls_back_to_ollama_when_offline`, `test_routes_to_gemini_when_online`, `test_falls_back_to_ollama_on_gemini_exception`).
+- **Manual Demo Checklist**:
+  - [x] Execute `demo_phase3.py` dual reasoning router script.
+  - [x] Verify online connectivity check (`is_online()`).
+  - [x] Verify Gemini API routing when online and configured.
+  - [x] Verify seamless fallback to local Ollama (`qwen2.5:3b`) when offline or on Gemini failure.

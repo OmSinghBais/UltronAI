@@ -9,6 +9,10 @@ Status: Demo-ready
 Status: Demo-ready
 - [2026-07-30] Implemented `core/wake_word.py` (openwakeword wrapper), `core/stt.py` (faster-whisper Hindi/English transcriber), `core/tts.py` (Piper TTS speech synthesis), unit tests (`tests/core/test_voice_loop.py`), and `demo_phase2.py` voice pipeline echo test.
 
+### Phase 3 — Router (Gemini + Ollama with Fallback)
+Status: Demo-ready
+- [2026-07-30] Implemented `core/router.py` with online connectivity check (`is_online()`), online Gemini reasoning (`gemini-1.5-flash`), and local Ollama (`qwen2.5:3b`) offline fallback engine. Created unit tests `tests/core/test_router.py` (all tests passing) and `demo_phase3.py`.
+
 ---
 
 ## Control Track (owned by Person B)
