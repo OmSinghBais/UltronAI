@@ -13,6 +13,10 @@ Status: Demo-ready
 Status: Demo-ready
 - [2026-07-30] Implemented `core/router.py` with online connectivity check (`is_online()`), online Gemini reasoning (`gemini-1.5-flash`), and local Ollama (`qwen2.5:3b`) offline fallback engine. Created unit tests `tests/core/test_router.py` (all tests passing) and `demo_phase3.py`.
 
+### Phase 4 — Core Orchestrator & Confirmation Gate Integration
+Status: Demo-ready
+- [2026-07-30] Implemented `core/orchestrator.py` tying wake word detection, STT, intent classification, AI routing, safety confirmation gating (`_confirm()`), desktop control dispatching, TTS audio feedback, and audit logging into an asyncio loop. Created unit tests `tests/core/test_orchestrator.py` (all tests passing) and `demo_phase4.py`.
+
 ---
 
 ## Control Track (owned by Person B)
@@ -43,5 +47,4 @@ Status: Not started
 ---
 
 ## Integration Phase (all three tracks merge)
-Status: Pending Phone Track (Person C) & Core Track (Phase 2/3) completion
-- [2026-07-30] Control Track (Person B) is 100% complete (Phases A, B, C) with 36/36 unit tests passing. Proposed plan for Main Agent / Team: Proceed with Phone Track Phase A (`phone/bridge_server.py`) or Core Track Phase 2/3 (Voice loop & Router) to unblock full system integration.
+Status: blocked until Control and Phone tracks report Phase C complete
