@@ -61,7 +61,7 @@ Status: ✅ COMPLETE
   - Added `_dispatch_phone_action()` async dispatcher with graceful error if controller not connected.
   - 3 new orchestrator phone tests added to `tests/core/test_orchestrator.py`.
 - [2026-07-31] Fixed `tests/core/test_voice_loop.py` — replaced network-blocking WhisperModel download with `unittest.mock` patches; `core/stt.py` refactored to expose `WhisperModel` at module level for testability.
-- **Final test count: 59/59 passed in 1.98s (all tracks, all modules, zero network calls).**
+- **Final test count: 68/68 passed in 4.42s (all tracks, all modules, zero network calls).**
 
 ---
 
@@ -76,11 +76,46 @@ Status: ✅ COMPLETE
 │                    ┌─────────┼──────────┐                              │
 │                    ▼         ▼          ▼                               │
 │              Desktop      Browser    Phone ──→ PhoneController          │
-│              Control      Control    Control   (WebSocket port 8765)    │
-│                    └─────────┴──────────┘                              │
+│              Control      Control    Control   (ws://127.0.0.1:8765     │
+│                    └─────────┴──────────┘    via ADB tunnel)           │
 │                              │                                          │
 │                    ConfirmationGate (sensitive actions)                 │
 │                    AuditLogger (append-only JSONL)                      │
 │                    TTS → Speaker                                        │
 └─────────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## Phone Track — Phase D: Physical Device Sideload & Live Verification
+Status: ✅ COMPLETE
+- [2026-07-31] Sideloaded `app-debug.apk` onto physical Android device via `adb install`.
+- [2026-07-31] Manually enabled Accessibility Service and Draw-over-apps on device.
+- [2026-07-31] Established ADB port-forward tunnel (`adb forward tcp:8765 tcp:8765`) — reliable alternative to Wi-Fi routing.
+- [2026-07-31] Added `local.properties` with `sdk.dir` for CLI-only macOS builds.
+- [2026-07-31] Fixed Kotlin build error — removed stale duplicate `WebSocketServer.kt` (caused `Redeclaration: CompanionWebSocketServer`).
+- [2026-07-31] **Live device smoke test — all passed:**
+  ```
+  ✅ connect()      → ws://127.0.0.1:8765 (ADB tunnel)
+  ✅ read_screen()  → 9 real UI elements from device
+  ✅ scroll("down") → {'status': 'ok', 'action': 'scroll', 'direction': 'down'}
+  ✅ tap(540, 960)  → {'status': 'ok', 'action': 'tap'}
+  ```
+- Phone Track 100% complete: code ✅  tests ✅  build ✅  sideload ✅  live device ✅
+
+---
+
+## ADB Runtime Quick Reference
+```bash
+# Each dev session — run once with USB plugged in
+adb forward tcp:8765 tcp:8765
+
+# Verify service started on phone
+adb logcat -s AtlasWSServer
+
+# Rebuild + reinstall after Kotlin changes
+cd atlas-phone-companion
+ANDROID_HOME="$HOME/Library/Android/sdk" ./gradlew assembleDebug && cd ..
+adb install -r atlas-phone-companion/app/build/outputs/apk/debug/app-debug.apk
+# Then toggle Accessibility OFF → ON on the phone to reload the service
 ```
