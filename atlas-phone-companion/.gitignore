@@ -1,0 +1,4 @@
+.gradle/
+build/
+*.apk
+.DS_Store
