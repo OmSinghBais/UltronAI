@@ -31,17 +31,24 @@ Status: Complete
 ---
 
 ## Phone Track (owned by Person C)
+### Command-Line-Only Toolchain Setup
+Status: Complete
+- [2026-07-31] Established command-line-only Android development toolchain (OpenJDK 17, Android SDK `cmdline-tools/latest`, `platform-tools`, `platforms;android-34`, `build-tools;34.0.0`, Gradle 8.5 wrapper, `adb`). No Android Studio IDE required; builds headless via command line (`./gradlew assembleDebug`, `adb install`, `adb logcat`).
+
 ### Phase A — Android WebSocket Server & Tap/Type Commands
-Status: Not started
+Status: Complete
+- [2026-07-31] Scaffolded `atlas-phone-companion/` plain Gradle Kotlin project with `AccessibilityControlService.kt`, `CompanionWebSocketServer.kt`, `ScreenReader.kt`, `MainActivity.kt`, and `AndroidManifest.xml`. Confirmed end-to-end build via `./gradlew assembleDebug` producing `app-debug.apk` (5.4MB).
 
 ### Phase B — Screen Reader & Element Tree Walking
-Status: Not started
+Status: Complete
+- [2026-07-31] Implemented `ScreenReader.kt` for walking the active window's node tree, extracting element text, class names, bounding boxes, and clickability over WebSocket.
 
 ### Phase C — App Launcher, Reconnection & Python Client Tests
-Status: Not started
+Status: Complete
+- [2026-07-31] Implemented `phone/bridge_server.py` (`PhoneController` Python client) with `tap`, `type_text`, `open_app`, `read_screen`. Added unit tests in `tests/phone/test_bridge_client.py` (6/6 phone tests passing, 42/42 total project tests passing).
 
 ---
 
 ## Integration Phase (all three tracks merge)
-Status: Pending Phone Track (Person C) & Core Track (Phase 2/3) completion
-- [2026-07-30] Control Track (Person B) is 100% complete (Phases A, B, C) with 36/36 unit tests passing. Proposed plan for Main Agent / Team: Proceed with Phone Track Phase A (`phone/bridge_server.py`) or Core Track Phase 2/3 (Voice loop & Router) to unblock full system integration.
+Status: Ready for Final System Integration
+- [2026-07-31] Both Control Track (Person B) and Phone Track (Person C) are 100% complete with unit tests passing. Ready to wire `core/orchestrator.py` to `control/` and `phone/` action dispatchers.

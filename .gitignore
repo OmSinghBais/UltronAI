@@ -22,3 +22,12 @@ storage/*.sqlite
 # OS generated files
 .DS_Store
 Thumbs.db
+
+# Android & Gradle build files
+.gradle/
+build/
+atlas-phone-companion/build/
+atlas-phone-companion/app/build/
+atlas-phone-companion/.gradle/
+*.apk
+
