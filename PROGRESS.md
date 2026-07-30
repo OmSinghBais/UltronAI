@@ -9,10 +9,12 @@ Status: Demo-ready
 
 ## Control Track (owned by Person B)
 ### Phase A — Desktop Control & Tests
-Status: Not started
+Status: Complete
+- [2026-07-30] Implemented `control/desktop.py` wrappers (`open_app`, `type_text`, `click`, `screenshot`, `delete_path`) with standardized response schema. Created test suite in `tests/control/test_desktop.py` (15/15 unit tests passing).
 
 ### Phase B — Browser Automation & Tests
-Status: Not started
+Status: Proposed / Pending Approval
+- Proposed Plan: Implement `control/browser.py` Playwright wrappers (`navigate`, `search`, `fill_form`, `read_page`) and `tests/control/test_browser.py`. Awaiting main agent / team review to proceed.
 
 ### Phase C — Confirmation Decorator & Face Gate
 Status: Not started
