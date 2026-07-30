@@ -91,4 +91,39 @@ class AccessibilityControlService : AccessibilityService() {
         val root = rootInActiveWindow ?: return emptyList()
         return ScreenReader.walkTree(root)
     }
+
+    /**
+     * Performs a scroll gesture via [GestureDescription].
+     *
+     * @param direction One of "down", "up", "left", "right".
+     * @param originX   Horizontal start point of the gesture (default screen centre).
+     * @param originY   Vertical start point of the gesture (default screen centre).
+     * @return true if the gesture was dispatched successfully.
+     */
+    fun performScroll(
+        direction: String,
+        originX: Int = 540,
+        originY: Int = 960
+    ): Boolean {
+        val swipeDistance = 400   // pixels
+        val duration = 300L       // milliseconds
+
+        // Calculate end point based on direction.
+        // "scroll down" → finger swipes UP (content moves down).
+        val (endX, endY) = when (direction.lowercase()) {
+            "down"  -> Pair(originX, originY - swipeDistance)
+            "up"    -> Pair(originX, originY + swipeDistance)
+            "left"  -> Pair(originX + swipeDistance, originY)
+            "right" -> Pair(originX - swipeDistance, originY)
+            else    -> return false
+        }
+
+        val path = Path().apply {
+            moveTo(originX.toFloat(), originY.toFloat())
+            lineTo(endX.toFloat(), endY.toFloat())
+        }
+        val stroke = GestureDescription.StrokeDescription(path, 0, duration)
+        val gesture = GestureDescription.Builder().addStroke(stroke).build()
+        return dispatchGesture(gesture, null, null)
+    }
 }

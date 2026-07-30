@@ -65,6 +65,16 @@ class CompanionWebSocketServer(
                     response.put("status", "ok")
                     response.put("elements", arr)
                 }
+                "scroll" -> {
+                    val direction = json.optString("direction", "down")
+                    val x = json.optInt("x", 540)
+                    val y = json.optInt("y", 960)
+                    val ok = service.performScroll(direction, x, y)
+                    response.put("status", if (ok) "ok" else "error")
+                    response.put("action", "scroll")
+                    response.put("direction", direction)
+                    if (!ok) response.put("reason", "Gesture dispatch failed or unknown direction '$direction'")
+                }
                 else -> {
                     response.put("status", "error")
                     response.put("reason", "Unknown action '$action'")
