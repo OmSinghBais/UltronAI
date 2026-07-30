@@ -5,6 +5,10 @@
 Status: Demo-ready
 - [2026-07-30] Established project scaffolding, `ATLAS_MASTER_PROMPT.md` specification, Pydantic settings loading, intent schemas, append-only JSONL audit logger, Windows setup guide, unit tests (`tests/core/test_config_and_audit.py`), and verification script (`demo_phase1.py`). All tests passing.
 
+### Phase 2 — Voice Loop (Wake Word → STT → TTS)
+Status: Demo-ready
+- [2026-07-30] Implemented `core/wake_word.py` (openwakeword wrapper), `core/stt.py` (faster-whisper Hindi/English transcriber), `core/tts.py` (Piper TTS speech synthesis), unit tests (`tests/core/test_voice_loop.py`), and `demo_phase2.py` voice pipeline echo test.
+
 ---
 
 ## Control Track (owned by Person B)
