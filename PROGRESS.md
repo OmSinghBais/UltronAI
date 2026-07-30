@@ -13,6 +13,10 @@ Status: Demo-ready
 Status: Demo-ready
 - [2026-07-30] Implemented `core/router.py` with online connectivity check (`is_online()`), online Gemini reasoning (`gemini-1.5-flash`), and local Ollama (`qwen2.5:3b`) offline fallback engine. Created unit tests `tests/core/test_router.py` (all tests passing) and `demo_phase3.py`.
 
+### Phase 4 — Core Orchestrator & Confirmation Gate Integration
+Status: Demo-ready
+- [2026-07-30] Implemented `core/orchestrator.py` tying wake word detection, STT, intent classification, AI routing, safety confirmation gating (`_confirm()`), desktop control dispatching, TTS audio feedback, and audit logging into an asyncio loop. Created unit tests `tests/core/test_orchestrator.py` (all tests passing) and `demo_phase4.py`.
+
 ---
 
 ## Control Track (owned by Person B)
@@ -37,7 +41,7 @@ Status: Complete
 
 ### Phase A — Android WebSocket Server & Tap/Type Commands
 Status: Complete
-- [2026-07-31] Scaffolded `atlas-phone-companion/` plain Gradle Kotlin project with `AccessibilityControlService.kt`, `CompanionWebSocketServer.kt`, `ScreenReader.kt`, `MainActivity.kt`, and `AndroidManifest.xml`. Confirmed end-to-end build via `./gradlew assembleDebug` producing `app-debug.apk` (5.4MB).
+- [2026-07-31] Scaffolded `atlas-phone-companion/` plain Gradle Kotlin project with `AccessibilityControlService.kt`, `CompanionWebSocketServer.kt`, `ScreenReader.kt`, `MainActivity.kt`, and `AndroidManifest.xml`. Implemented `tap`, `type`, `open_app`, and `read_screen` handler actions via Accessibility APIs. Implemented `PhoneController` Python WebSocket client in `phone/bridge_server.py`. Confirmed end-to-end build via `./gradlew assembleDebug` producing `app-debug.apk` (5.4MB).
 
 ### Phase B — Screen Reader & Element Tree Walking
 Status: Complete
@@ -51,4 +55,4 @@ Status: Complete
 
 ## Integration Phase (all three tracks merge)
 Status: Ready for Final System Integration
-- [2026-07-31] Both Control Track (Person B) and Phone Track (Person C) are 100% complete with unit tests passing. Ready to wire `core/orchestrator.py` to `control/` and `phone/` action dispatchers.
+- [2026-07-31] Core Track, Control Track (Person B), and Phone Track (Person C) are 100% complete with unit tests passing. Ready to wire `core/orchestrator.py` to `control/` and `phone/` action dispatchers for end-to-end integration.

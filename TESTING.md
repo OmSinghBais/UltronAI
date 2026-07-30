@@ -27,3 +27,13 @@
   - [x] Verify online connectivity check (`is_online()`).
   - [x] Verify Gemini API routing when online and configured.
   - [x] Verify seamless fallback to local Ollama (`qwen2.5:3b`) when offline or on Gemini failure.
+
+## Phase 4
+- **Automated Tests**:
+  - `tests/core/test_orchestrator.py`: 4 passed (`test_intent_classification`, `test_query_command_execution`, `test_sensitive_action_confirmed`, `test_sensitive_action_cancelled`).
+- **Manual Demo Checklist**:
+  - [x] Execute `demo_phase4.py` orchestrator integration script.
+  - [x] Verify intent classification (queries vs desktop actions vs sensitive actions).
+  - [x] Verify autonomous execution for query & non-sensitive desktop action.
+  - [x] Verify sensitive action cancellation when confirm_fn returns False.
+  - [x] Verify sensitive action execution when confirm_fn returns True.
