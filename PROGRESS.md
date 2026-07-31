@@ -1,121 +1,167 @@
 # ATLAS Progress
 
+> **Last Updated:** 2026-07-31  
+> **Overall Status:** Phase 7 (Hardening) — In Progress  
+> **Test Count:** 68/68 passing · 2.97s
+
+---
+
+## Summary Table
+
+| Track | Owner | Status |
+|---|---|---|
+| Core (Phases 1–4) | Core Lead | ✅ Complete |
+| Control (Phases A–C) | Person B | ✅ Complete |
+| Phone (Phases A–D + extras) | Person C | ✅ Complete |
+| Integration (all tracks wired) | All | ✅ Complete |
+| Phase 7 — Hardening & Demo | All | ⚠️ In Progress |
+
+---
+
 ## Core Track (owned by Core Lead)
+
 ### Phase 1 — Scaffolding, Config, Audit Log
-Status: Demo-ready
-- [2026-07-30] Established project scaffolding, `ATLAS_MASTER_PROMPT.md` specification, Pydantic settings loading, intent schemas, append-only JSONL audit logger, Windows setup guide, unit tests (`tests/core/test_config_and_audit.py`), and verification script (`demo_phase1.py`). All tests passing.
+**Status: ✅ Complete**
+- [2026-07-30] Established project scaffolding, `ATLAS_MASTER_PROMPT.md` specification, Pydantic settings loading, intent schemas, append-only JSONL audit logger, setup guide, unit tests (`tests/core/test_config_and_audit.py`), and verification script (`demo_phase1.py`). All tests passing.
 
 ### Phase 2 — Voice Loop (Wake Word → STT → TTS)
-Status: Demo-ready
-- [2026-07-30] Implemented `core/wake_word.py` (openwakeword wrapper), `core/stt.py` (faster-whisper Hindi/English transcriber), `core/tts.py` (Piper TTS speech synthesis), unit tests (`tests/core/test_voice_loop.py`), and `demo_phase2.py` voice pipeline echo test.
+**Status: ✅ Complete**
+- [2026-07-30] Implemented `core/wake_word.py` (openwakeword wrapper), `core/stt.py` (faster-whisper Hindi/English transcriber), `core/tts.py` (Piper TTS with numpy fallback), unit tests (`tests/core/test_voice_loop.py`), and `demo_phase2.py`.
+- [2026-07-31] Refactored `core/stt.py` to expose `WhisperModel` at module level for mockability. Fixed `test_voice_loop.py` — replaced blocking HuggingFace model download with `unittest.mock` patches; all 4 voice tests run instantly offline.
 
 ### Phase 3 — Router (Gemini + Ollama with Fallback)
-Status: Demo-ready
-- [2026-07-30] Implemented `core/router.py` with online connectivity check (`is_online()`), online Gemini reasoning (`gemini-1.5-flash`), and local Ollama (`qwen2.5:3b`) offline fallback engine. Created unit tests `tests/core/test_router.py` (all tests passing) and `demo_phase3.py`.
+**Status: ✅ Complete**
+- [2026-07-30] Implemented `core/router.py` with `is_online()` connectivity check, Gemini online reasoning (`gemini-1.5-flash`), and local Ollama (`qwen2.5:3b`) offline fallback. Unit tests `tests/core/test_router.py` (3/3 passing) and `demo_phase3.py`.
+- ⚠️ **Known: `google-generativeai` SDK is deprecated** — emits `FutureWarning` on every run. Migration to `google-genai` is next planned task.
 
-### Phase 4 — Core Orchestrator & Confirmation Gate Integration
-Status: Demo-ready
-- [2026-07-30] Implemented `core/orchestrator.py` tying wake word detection, STT, intent classification, AI routing, safety confirmation gating (`_confirm()`), desktop control dispatching, TTS audio feedback, and audit logging into an asyncio loop. Created unit tests `tests/core/test_orchestrator.py` (all tests passing) and `demo_phase4.py`.
+### Phase 4 — Core Orchestrator & Confirmation Gate
+**Status: ✅ Complete**
+- [2026-07-30] Implemented `core/orchestrator.py` tying wake word, STT, intent classification, AI routing, safety confirmation gate, desktop/browser/phone dispatch, TTS, and audit logging into a single asyncio loop. Unit tests `tests/core/test_orchestrator.py` (9/9 passing) and `demo_phase4.py`.
+- [2026-07-31] Extended orchestrator with `PHONE_ACTION` intent dispatch → `PhoneController`. Added `phone: Optional[PhoneController]` constructor parameter and `_dispatch_phone_action()` async method.
 
 ---
 
 ## Control Track (owned by Person B)
+
 ### Phase A — Desktop Control & Tests
-Status: Complete
-- [2026-07-30] Implemented `control/desktop.py` wrappers (`open_app`, `type_text`, `click`, `screenshot`, `delete_path`) with standardized response schema. Created test suite in `tests/control/test_desktop.py` (15/15 unit tests passing).
+**Status: ✅ Complete**
+- [2026-07-30] Implemented `control/desktop.py` (`open_app`, `type_text`, `click`, `screenshot`, `delete_path`). Test suite `tests/control/test_desktop.py` — **15/15 passing**.
 
 ### Phase B — Browser Automation & Tests
-Status: Complete
-- [2026-07-30] Implemented `control/browser.py` Playwright wrappers (`navigate`, `search`, `fill_form`, `read_page`) with standardized dict response schema. Created test suite in `tests/control/test_browser.py` (all 26 control unit tests passing).
+**Status: ✅ Complete**
+- [2026-07-30] Implemented `control/browser.py` Playwright wrappers (`navigate`, `search`, `fill_form`, `read_page`). Test suite `tests/control/test_browser.py` — **11/11 passing**.
 
 ### Phase C — Confirmation Decorator & Face Gate
-Status: Complete
-- [2026-07-30] Implemented `control/confirmation.py` (`@requires_confirmation` decorator wrapper for sensitive actions), `control/face_gate.py` (local face enrollment/verification encrypted at rest via `cryptography.fernet`), and test suite in `tests/control/test_confirmation.py` (all 36 control unit tests passing).
+**Status: ✅ Complete**
+- [2026-07-30] Implemented `control/confirmation.py` (`@requires_confirmation` decorator) and `control/face_gate.py` (Fernet-encrypted local face enrollment/verification). Test suite `tests/control/test_confirmation.py` — **10/10 passing**.
+- Total control tests: **36/36 passing**.
 
 ---
 
 ## Phone Track (owned by Person C)
-### Command-Line-Only Toolchain Setup
-Status: Complete
-- [2026-07-31] Established command-line-only Android development toolchain (OpenJDK 17, Android SDK `cmdline-tools/latest`, `platform-tools`, `platforms;android-34`, `build-tools;34.0.0`, Gradle 8.5 wrapper, `adb`). No Android Studio IDE required; builds headless via command line (`./gradlew assembleDebug`, `adb install`, `adb logcat`).
 
-### Phase A — Android WebSocket Server & Tap/Type Commands
-Status: Complete
-- [2026-07-31] Scaffolded `atlas-phone-companion/` plain Gradle Kotlin project with `AccessibilityControlService.kt`, `CompanionWebSocketServer.kt`, `ScreenReader.kt`, `MainActivity.kt`, and `AndroidManifest.xml`. Implemented `tap`, `type`, `open_app`, and `read_screen` handler actions via Accessibility APIs. Implemented `PhoneController` Python WebSocket client in `phone/bridge_server.py`. Confirmed end-to-end build via `./gradlew assembleDebug` producing `app-debug.apk` (5.4MB).
+### Toolchain Setup — CLI-Only (no Android Studio)
+**Status: ✅ Complete**
+- [2026-07-31] OpenJDK 17, Android SDK `cmdline-tools/latest`, `platform-tools`, `platforms;android-34`, `build-tools;34.0.0`, Gradle 8.5 wrapper, `adb`. Builds headless via `./gradlew assembleDebug`.
+- `atlas-phone-companion/local.properties` — `sdk.dir=$HOME/Library/Android/sdk` for macOS CLI builds.
 
-### Phase B — Screen Reader & Element Tree Walking
-Status: Complete
-- [2026-07-31] Implemented `ScreenReader.kt` for walking the active window's node tree, extracting element text, class names, bounding boxes, and clickability over WebSocket.
+### Phase A — Android WebSocket Server & Tap/Type
+**Status: ✅ Complete**
+- [2026-07-31] Kotlin project scaffolded: `AccessibilityControlService.kt`, `CompanionWebSocketServer.kt`, `ScreenReader.kt`, `MainActivity.kt`, `AndroidManifest.xml`. Commands: `tap`, `type`, `open_app`, `read_screen` via Accessibility APIs. APK built: `app-debug.apk` (5.4MB).
 
-### Phase C — App Launcher, Reconnection & Python Client Tests
-Status: Complete
-- [2026-07-31] Implemented `phone/bridge_server.py` (`PhoneController` Python client) with `tap`, `type_text`, `open_app`, `read_screen`. Added unit tests in `tests/phone/test_bridge_client.py` (6/6 phone tests passing).
+### Phase B — Screen Reader & Node Tree Walking
+**Status: ✅ Complete**
+- [2026-07-31] `ScreenReader.kt` walks active window node tree — extracts text, class names, bounding boxes, clickability.
 
----
+### Phase C — App Launcher, Auto-Reconnect & Python Client Tests
+**Status: ✅ Complete**
+- [2026-07-31] `phone/bridge_server.py` — `PhoneController` with `tap`, `type_text`, `open_app`, `read_screen`, `scroll`.
+- Auto-reconnect: `_ensure_connected()` with exponential back-off (0.5s/1s/1.5s). `_send()` shared helper used by all commands.
+- `scroll(direction, x, y)` — `down/up/left/right` via `GestureDescription` swipe (400px, 300ms).
+- Tests `tests/phone/test_bridge_client.py` — **15/15 passing** (covers reconnect paths, all scroll directions, invalid direction, `ConnectionClosed` auto-reset).
 
-## Integration Phase (all three tracks merged)
-Status: ✅ COMPLETE
-- [2026-07-31] Wired `core/orchestrator.py` to dispatch `PHONE_ACTION` intents to `phone/bridge_server.PhoneController` WebSocket bridge.
-  - Added `phone: Optional[PhoneController]` constructor parameter to `Orchestrator`.
-  - Added `PHONE_ACTION` keyword detection (`tap phone`, `read screen`, `open app on phone`, `type on phone`).
-  - Added `_dispatch_phone_action()` async dispatcher with graceful error if controller not connected.
-  - 3 new orchestrator phone tests added to `tests/core/test_orchestrator.py`.
-- [2026-07-31] Fixed `tests/core/test_voice_loop.py` — replaced network-blocking WhisperModel download with `unittest.mock` patches; `core/stt.py` refactored to expose `WhisperModel` at module level for testability.
-- **Final test count: 68/68 passed in 4.42s (all tracks, all modules, zero network calls).**
-
----
-
-## Architecture Summary
-
-```
-┌─────────────────────────────────────────────────────────────────────────┐
-│                        ATLAS — ULTRON AI                                │
-│                                                                         │
-│  Mic → WakeWord → STT → Orchestrator ──── Router ──→ Gemini / Ollama   │
-│                              │                                          │
-│                    ┌─────────┼──────────┐                              │
-│                    ▼         ▼          ▼                               │
-│              Desktop      Browser    Phone ──→ PhoneController          │
-│              Control      Control    Control   (ws://127.0.0.1:8765     │
-│                    └─────────┴──────────┘    via ADB tunnel)           │
-│                              │                                          │
-│                    ConfirmationGate (sensitive actions)                 │
-│                    AuditLogger (append-only JSONL)                      │
-│                    TTS → Speaker                                        │
-└─────────────────────────────────────────────────────────────────────────┘
-```
-
----
-
-## Phone Track — Phase D: Physical Device Sideload & Live Verification
-Status: ✅ COMPLETE
-- [2026-07-31] Sideloaded `app-debug.apk` onto physical Android device via `adb install`.
-- [2026-07-31] Manually enabled Accessibility Service and Draw-over-apps on device.
-- [2026-07-31] Established ADB port-forward tunnel (`adb forward tcp:8765 tcp:8765`) — reliable alternative to Wi-Fi routing.
-- [2026-07-31] Added `local.properties` with `sdk.dir` for CLI-only macOS builds.
-- [2026-07-31] Fixed Kotlin build error — removed stale duplicate `WebSocketServer.kt` (caused `Redeclaration: CompanionWebSocketServer`).
-- [2026-07-31] **Live device smoke test — all passed:**
+### Phase D — Physical Device Sideload & Live Verification
+**Status: ✅ Complete**
+- [2026-07-31] Sideloaded `app-debug.apk` onto physical Android device via `adb install -r`.
+- Manually enabled Accessibility Service + Draw-over-apps on device (cannot be scripted).
+- ADB port-forward tunnel: `adb forward tcp:8765 tcp:8765` — routes traffic through USB, bypasses Wi-Fi routing issues.
+- Fixed Kotlin redeclaration build error — removed stale duplicate `WebSocketServer.kt`.
+- **Live device smoke test — all passed:**
   ```
   ✅ connect()      → ws://127.0.0.1:8765 (ADB tunnel)
-  ✅ read_screen()  → 9 real UI elements from device
+  ✅ read_screen()  → 9 real UI elements returned from device
   ✅ scroll("down") → {'status': 'ok', 'action': 'scroll', 'direction': 'down'}
   ✅ tap(540, 960)  → {'status': 'ok', 'action': 'tap'}
   ```
-- Phone Track 100% complete: code ✅  tests ✅  build ✅  sideload ✅  live device ✅
+- Sideload guide: `docs/phone-sideload-guide.md`
 
 ---
 
-## ADB Runtime Quick Reference
+## Integration Phase
+**Status: ✅ Complete**
+- [2026-07-31] All three tracks wired in `core/orchestrator.py`:
+  - Desktop → `control/desktop.py`
+  - Browser → `control/browser.py`
+  - Phone → `phone/bridge_server.PhoneController` (WebSocket via ADB tunnel)
+  - Sensitive actions → `control/confirmation.py` confirmation gate
+  - All intents → `core/audit_log.py` JSONL append
+- **68/68 tests passing in 2.97s. Zero network calls during test runs.**
+
+---
+
+## Phase 7 — Hardening & Demo (In Progress)
+
+### ⚠️ Open Items
+
+| # | Task | Priority | Notes |
+|---|---|---|---|
+| 1 | Migrate `google-generativeai` → `google-genai` in `core/router.py` | 🔴 High | Emits `FutureWarning` on every run; SDK is EOL |
+| 2 | `demo_phase7.py` — full end-to-end voice loop with latency logging | 🔴 High | Spec: wake word → STT → router → action → TTS → audit < 3s |
+| 3 | On-screen control indicator (floating overlay) | 🟡 Medium | Safety rail from `ATLAS_MASTER_PROMPT.md` — not yet built |
+| 4 | ADB port-forward auto-setup on orchestrator startup | 🟡 Medium | Currently manual each session |
+| 5 | `keyring` integration for credential storage | 🟡 Medium | Spec: credentials in OS keychain, not `.env` |
+| 6 | SQLite command history (`aiosqlite`) | 🟢 Low | Spec mentions SQLite; only JSONL audit log exists |
+| 7 | Integration tests with latency measurement | 🟢 Low | Phase 7 spec requirement |
+
+---
+
+## Architecture
+
+```
+┌──────────────────────────────────────────────────────────────────────────┐
+│                          ATLAS — ULTRON AI                               │
+│                                                                          │
+│  Mic → WakeWord → STT → Orchestrator ──── Router ──→ Gemini / Ollama    │
+│                              │                                           │
+│                    ┌─────────┼──────────┐                               │
+│                    ▼         ▼          ▼                                │
+│              Desktop      Browser    Phone ──→ PhoneController           │
+│              Control      Control    Control   (ws://127.0.0.1:8765      │
+│                    └─────────┴──────────┘    via ADB port-forward)      │
+│                              │                                           │
+│                    ConfirmationGate (sensitive actions)                  │
+│                    AuditLogger (append-only JSONL)                       │
+│                    TTS → Speaker                                         │
+└──────────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## ADB Quick Reference (each dev session)
+
 ```bash
-# Each dev session — run once with USB plugged in
+# 1. Forward phone port through USB (run once per session)
 adb forward tcp:8765 tcp:8765
 
-# Verify service started on phone
+# 2. Verify phone service is up
 adb logcat -s AtlasWSServer
 
-# Rebuild + reinstall after Kotlin changes
+# 3. Rebuild + reinstall after Kotlin changes
 cd atlas-phone-companion
 ANDROID_HOME="$HOME/Library/Android/sdk" ./gradlew assembleDebug && cd ..
 adb install -r atlas-phone-companion/app/build/outputs/apk/debug/app-debug.apk
-# Then toggle Accessibility OFF → ON on the phone to reload the service
+# Toggle Accessibility OFF → ON on phone after reinstall
+
+# 4. Run all tests
+.venv313/bin/pytest tests/ -q
 ```
