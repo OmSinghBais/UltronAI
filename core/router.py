@@ -6,17 +6,19 @@ from config.settings import settings
 
 class Router:
     """
-    Dual-engine reasoning router for ATLAS with multi-key automatic rotation pool.
-    Tries configured API keys in order (Primary -> Secondary -> Tertiary),
-    querying models (gemma-4-31b-it, gemini-2.0-flash, etc.).
+    Dual-engine reasoning router for ATLAS with dynamic model discovery & multi-key rotation.
+    Automatically queries Google AI Studio API for available models on each key,
+    ensuring 100% compatibility with latest Gemini & Gemma models (gemini-3.6-flash, gemini-3.5-flash, gemma-4-31b-it, etc.).
     Falls back to local Ollama when offline or when no Gemini API keys are configured.
     """
-    PREFERRED_MODELS: List[str] = [
+    FALLBACK_MODELS: List[str] = [
         "gemma-4-31b-it",
-        "gemini-2.0-flash",
-        "gemini-2.0-flash-lite",
-        "gemini-1.5-flash-latest",
-        "gemini-2.5-flash"
+        "gemini-3.6-flash",
+        "gemini-3.5-flash",
+        "gemini-3.5-flash-lite",
+        "gemini-3.1-flash-lite",
+        "gemini-2.5-flash",
+        "gemini-2.0-flash"
     ]
 
     def __init__(self):
@@ -34,9 +36,40 @@ class Router:
         except Exception:
             return False
 
+    def _get_active_models_for_key(self, api_key: str) -> List[str]:
+        """Dynamically fetches models supporting generateContent for the key."""
+        try:
+            genai.configure(api_key=api_key)
+            discovered = []
+            for m in genai.list_models():
+                if "generateContent" in getattr(m, "supported_generation_methods", []):
+                    # Strip 'models/' prefix if present
+                    name = m.name.replace("models/", "")
+                    discovered.append(name)
+
+            # Prioritize flagship & fast models
+            priority_order = [
+                "gemini-3.6-flash",
+                "gemini-3.5-flash",
+                "gemma-4-31b-it",
+                "gemini-3.5-flash-lite",
+                "gemini-3.1-flash-lite",
+                "gemini-2.5-flash",
+                "gemini-2.0-flash"
+            ]
+
+            ordered = [m for m in priority_order if m in discovered]
+            for m in discovered:
+                if m not in ordered:
+                    ordered.append(m)
+
+            return ordered if ordered else self.FALLBACK_MODELS
+        except Exception:
+            return self.FALLBACK_MODELS
+
     async def route(self, prompt: str) -> Tuple[str, str]:
         """
-        Routes prompt to Gemini using multi-key automatic rotation pool if online.
+        Routes prompt to Gemini using dynamic model discovery and multi-key rotation pool if online.
         Returns tuple of (response_text, route_used).
         """
         if self.api_keys and await self.is_online():
@@ -45,20 +78,21 @@ class Router:
             for idx, key in enumerate(self.api_keys, 1):
                 try:
                     genai.configure(api_key=key)
+                    candidate_models = self._get_active_models_for_key(key)
+
+                    for model_name in candidate_models:
+                        try:
+                            model = genai.GenerativeModel(model_name)
+                            resp = model.generate_content(prompt)
+                            if resp and hasattr(resp, "text") and resp.text:
+                                return resp.text.strip(), f"gemini (key-{idx}/{model_name})"
+                        except Exception as e:
+                            errors.append(f"Key-{idx} [{model_name}]: {e}")
+
                 except Exception as e:
-                    errors.append(f"Key {idx} config error: {e}")
-                    continue
+                    errors.append(f"Key-{idx} config: {e}")
 
-                for model_name in self.PREFERRED_MODELS:
-                    try:
-                        model = genai.GenerativeModel(model_name)
-                        resp = model.generate_content(prompt)
-                        if resp and hasattr(resp, "text") and resp.text:
-                            return resp.text.strip(), f"gemini (key-{idx}/{model_name})"
-                    except Exception as e:
-                        errors.append(f"Key-{idx} [{model_name}]: {e}")
-
-            # If all keys/models hit quota limits or errors
+            # If all keys/models fail
             error_details = errors[0] if errors else "API call failed"
             if "429" in error_details or "Quota" in error_details:
                 return (

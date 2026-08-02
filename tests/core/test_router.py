@@ -25,12 +25,13 @@ async def test_routes_to_gemini_when_online():
     mock_resp.text = "Paris is the capital of France."
 
     with patch.object(router, "is_online", AsyncMock(return_value=True)):
-        with patch("google.generativeai.GenerativeModel") as mock_model_cls:
-            mock_model = MagicMock()
-            mock_model.generate_content.return_value = mock_resp
-            mock_model_cls.return_value = mock_model
+        with patch.object(router, "_get_active_models_for_key", return_value=["gemma-4-31b-it"]):
+            with patch("google.generativeai.GenerativeModel") as mock_model_cls:
+                mock_model = MagicMock()
+                mock_model.generate_content.return_value = mock_resp
+                mock_model_cls.return_value = mock_model
 
-            text, route = await router.route("What is the capital of France?")
+                text, route = await router.route("What is the capital of France?")
 
     assert "gemini" in route
     assert text == "Paris is the capital of France."
@@ -43,18 +44,19 @@ async def test_multi_key_rotation_on_exception():
     router.api_keys = ["key-1", "key-2"]
 
     with patch.object(router, "is_online", AsyncMock(return_value=True)):
-        with patch("google.generativeai.GenerativeModel") as mock_model_cls:
-            mock_model_1 = MagicMock()
-            mock_model_1.generate_content.side_effect = Exception("Quota limit key 1")
+        with patch.object(router, "_get_active_models_for_key", return_value=["gemma-4-31b-it"]):
+            with patch("google.generativeai.GenerativeModel") as mock_model_cls:
+                mock_model_1 = MagicMock()
+                mock_model_1.generate_content.side_effect = Exception("Quota limit key 1")
 
-            mock_model_2 = MagicMock()
-            mock_resp_2 = MagicMock()
-            mock_resp_2.text = "Success on key 2"
-            mock_model_2.generate_content.return_value = mock_resp_2
+                mock_model_2 = MagicMock()
+                mock_resp_2 = MagicMock()
+                mock_resp_2.text = "Success on key 2"
+                mock_model_2.generate_content.return_value = mock_resp_2
 
-            mock_model_cls.side_effect = [mock_model_1] * len(Router.PREFERRED_MODELS) + [mock_model_2]
+                mock_model_cls.side_effect = [mock_model_1, mock_model_2]
 
-            text, route = await router.route("Hello world")
+                text, route = await router.route("Hello world")
 
     assert "gemini" in route
     assert text == "Success on key 2"
