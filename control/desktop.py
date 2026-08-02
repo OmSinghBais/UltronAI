@@ -12,6 +12,7 @@ Functions:
 import base64
 import os
 import platform
+import re
 import shutil
 import subprocess
 from io import BytesIO
@@ -26,32 +27,67 @@ except ImportError:
 def open_app(app_name: str) -> Dict[str, Any]:
     """
     Opens an application by name on macOS, Windows, or Linux.
+    Cleans prompt noise ('in laptop', 'on my laptop', 'app') and launches via OS shell.
     """
     if not app_name or not app_name.strip():
         return {"status": "error", "error": "Application name cannot be empty"}
 
     action_name = "open_app"
-    app_name = app_name.strip()
+    raw_name = app_name.strip()
+    
+    # Strip common command filler words
+    cleaned_name = re.sub(
+        r'\b(in|on|my|the|laptop|pc|desktop|app|application|please|can|you)\b',
+        '',
+        raw_name,
+        flags=re.IGNORECASE
+    ).strip()
+    
+    if not cleaned_name:
+        cleaned_name = raw_name
+
     system = platform.system()
+
+    # Windows application alias mapping
+    win_alias = {
+        "notepad": "notepad",
+        "calculator": "calc",
+        "calc": "calc",
+        "paint": "mspaint",
+        "chrome": "chrome",
+        "edge": "msedge",
+        "browser": "msedge",
+        "terminal": "cmd",
+        "cmd": "cmd",
+        "command prompt": "cmd",
+        "explorer": "explorer",
+        "file manager": "explorer",
+        "wordpad": "wordpad",
+        "settings": "ms-settings:"
+    }
+
+    target_app = win_alias.get(cleaned_name.lower(), cleaned_name)
 
     try:
         if system == "Darwin":
-            cmd = ["open", "-a", app_name]
+            cmd = ["open", "-a", target_app]
+            subprocess.Popen(cmd)
         elif system == "Windows":
-            cmd = ["start", "", app_name]
+            # Use os.system / start command for robust Windows shell execution
+            os.system(f'start "" "{target_app}"')
         else:
-            cmd = ["xdg-open", app_name]
+            cmd = ["xdg-open", target_app]
+            subprocess.Popen(cmd)
 
-        subprocess.Popen(cmd, shell=(system == "Windows"))
         return {
             "status": "ok",
             "action": action_name,
-            "data": {"app_name": app_name, "system": system},
+            "data": {"app_name": target_app, "raw_prompt": raw_name, "system": system},
         }
     except Exception as e:
         return {
             "status": "error",
-            "error": f"Failed to open application '{app_name}': {str(e)}",
+            "error": f"Failed to open application '{target_app}': {str(e)}",
         }
 
 

@@ -171,9 +171,13 @@ class Orchestrator:
 
     def _dispatch_desktop_action(self, text: str) -> Dict[str, Any]:
         text_lower = text.lower()
-        if "open" in text_lower:
-            app_name = text_lower.split("open")[-1].strip()
-            return open_app(app_name)
+        if "open" in text_lower or "launch" in text_lower:
+            # Extract target application
+            target = text_lower
+            for verb in ["open", "launch"]:
+                if verb in target:
+                    target = target.split(verb)[-1]
+            return open_app(target.strip())
         elif "type" in text_lower:
             content = text_lower.split("type")[-1].strip()
             return type_text(content)
