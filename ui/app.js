@@ -23,12 +23,47 @@ document.addEventListener("DOMContentLoaded", () => {
     let isListening = false;
     let pendingConfirmResolve = null;
 
+    // Natural Voice Picker (prioritize natural / Google / neural voices)
+    let selectedVoice = null;
+    function loadVoices() {
+        if (!("speechSynthesis" in window)) return;
+        const voices = window.speechSynthesis.getVoices();
+        if (!voices.length) return;
+
+        // Preferred voice priority list
+        const priorities = [
+            "Google US English",
+            "Microsoft Jenny Online (Natural)",
+            "Microsoft Guy Online (Natural)",
+            "Google UK English Female",
+            "Microsoft Zira",
+            "Samantha",
+            "Alex"
+        ];
+
+        for (const pref of priorities) {
+            const found = voices.find(v => v.name.includes(pref) || v.name.toLowerCase().includes(pref.toLowerCase()));
+            if (found) {
+                selectedVoice = found;
+                break;
+            }
+        }
+        if (!selectedVoice) {
+            selectedVoice = voices.find(v => v.lang.startsWith("en")) || voices[0];
+        }
+    }
+    if ("speechSynthesis" in window) {
+        window.speechSynthesis.onvoiceschanged = loadVoices;
+        loadVoices();
+    }
+
     // Execute Command
     async function executeCommand(cmd, confirmChoice = null) {
         if (!cmd || !cmd.trim()) return;
 
-        orbStatus.textContent = "Processing command...";
-        voiceOrb.classList.add("listening");
+        // Instant visual feedback: thinking spinner animation
+        orbStatus.textContent = "⚡ Thinking & Executing...";
+        voiceOrb.className = "voice-orb thinking";
 
         // Show active control indicator if control command
         const isControlCmd = ["open", "type", "click", "screenshot", "tap", "scroll", "read phone", "delete"].some(k => cmd.toLowerCase().includes(k));
@@ -99,8 +134,9 @@ document.addEventListener("DOMContentLoaded", () => {
 
         } catch (err) {
             responseText.textContent = `Error connecting to ATLAS engine: ${err.message}`;
+            voiceOrb.className = "voice-orb";
+            orbStatus.textContent = 'Listening paused. Click Mic to resume.';
         } finally {
-            voiceOrb.classList.remove("listening");
             setTimeout(() => controlIndicator.classList.add("hidden"), 1500);
         }
     }
@@ -122,7 +158,6 @@ document.addEventListener("DOMContentLoaded", () => {
             const cleaned = raw.replace(/^(hey|play|hi|ok|hello)?\s*(atlas|ultron)\b\s*/i, "").trim();
 
             if (!cleaned || cleaned.toLowerCase() === "atlas" || cleaned.toLowerCase() === "hey atlas" || cleaned.toLowerCase() === "play atlas") {
-                // User just called "Hey Atlas" -> Respond and listen for command
                 cmdInput.value = raw;
                 speakResponseAndListenNext("Yes, I am listening. What would you like me to do?");
             } else {
@@ -136,7 +171,7 @@ document.addEventListener("DOMContentLoaded", () => {
             if (continuousVoice && !window.speechSynthesis.speaking) {
                 try { recognition.start(); } catch(e) {}
             } else if (!window.speechSynthesis.speaking) {
-                voiceOrb.classList.remove("listening");
+                voiceOrb.className = "voice-orb";
                 orbStatus.textContent = 'Listening for "Hey Atlas" or click Mic...';
             }
         };
@@ -153,18 +188,21 @@ document.addEventListener("DOMContentLoaded", () => {
 
         window.speechSynthesis.cancel(); // Stop prior speech
         const utterance = new SpeechSynthesisUtterance(text);
-        utterance.rate = 1.05;
+        utterance.rate = 1.0;
         utterance.pitch = 1.0;
 
-        voiceOrb.classList.add("listening");
-        orbStatus.textContent = `Ultron Speaking: "${text.substring(0, 40)}..."`;
+        if (selectedVoice) {
+            utterance.voice = selectedVoice;
+        }
+
+        voiceOrb.className = "voice-orb speaking";
+        orbStatus.textContent = `🔊 Ultron Speaking: "${text.substring(0, 35)}..."`;
 
         utterance.onend = () => {
-            voiceOrb.classList.remove("listening");
+            voiceOrb.className = "voice-orb listening";
 
             if (continuousVoice && recognition) {
-                orbStatus.textContent = "Listening for your voice command...";
-                voiceOrb.classList.add("listening");
+                orbStatus.textContent = "🎙️ Listening for your voice command...";
                 isListening = true;
                 try { recognition.start(); } catch(e) {}
             } else {

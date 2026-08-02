@@ -235,7 +235,29 @@ body {
 
 .voice-orb.listening {
     animation: orbPulse 1.2s infinite alternate;
-    box-shadow: 0 0 50px rgba(146, 84, 222, 0.8);
+    box-shadow: 0 0 50px rgba(0, 210, 255, 0.8);
+}
+
+.voice-orb.thinking {
+    animation: orbRotate 0.8s linear infinite, orbSpinPulse 1s infinite alternate;
+    box-shadow: 0 0 55px rgba(255, 179, 0, 0.9);
+    background: radial-gradient(circle, #ffb300 0%, #ff6d00 100%);
+}
+
+.voice-orb.speaking {
+    animation: orbPulse 0.9s infinite alternate;
+    box-shadow: 0 0 60px rgba(0, 230, 118, 0.9);
+    background: radial-gradient(circle, #00e676 0%, #00b0ff 100%);
+}
+
+@keyframes orbRotate {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+@keyframes orbSpinPulse {
+    0% { transform: scale(1); filter: hue-rotate(0deg); }
+    100% { transform: scale(1.12); filter: hue-rotate(30deg); }
 }
 
 @keyframes orbPulse {
