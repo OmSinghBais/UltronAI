@@ -1,10 +1,16 @@
 import os
+import sys
+import io
 import json
 import asyncio
 import webbrowser
 from http.server import HTTPServer, SimpleHTTPRequestHandler
 from urllib.parse import parse_qs, urlparse
 from pathlib import Path
+
+# Force UTF-8 encoding for standard output streams on Windows
+sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
+sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='replace')
 
 from core.orchestrator import Orchestrator
 from config.settings import settings
@@ -21,7 +27,7 @@ class ATLASRequestHandler(SimpleHTTPRequestHandler):
             content_length = int(self.headers.get('Content-Length', 0))
             body = self.rfile.read(content_length)
             try:
-                data = json.loads(body.decode('utf-8'))
+                data = json.loads(body.decode('utf-8', errors='replace'))
                 command = data.get("command", "")
                 confirmed = data.get("confirmed", None)
 
@@ -53,10 +59,11 @@ class ATLASRequestHandler(SimpleHTTPRequestHandler):
 
     def send_json_response(self, data, status=200):
         self.send_response(status)
-        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Access-Control-Allow-Origin", "*")
         self.end_headers()
-        self.wfile.write(json.dumps(data).encode('utf-8'))
+        json_bytes = json.dumps(data, ensure_ascii=False, default=str).encode('utf-8', errors='replace')
+        self.wfile.write(json_bytes)
 
     def log_message(self, format, *args):
         # Suppress verbose HTTP access logs in console

@@ -243,12 +243,39 @@ document.addEventListener("DOMContentLoaded", () => {
         };
     }
 
+    function cleanTextForSpeech(text) {
+        if (!text) return "";
+        let clean = text;
+        // Remove code blocks
+        clean = clean.replace(/```[\s\S]*?```/g, " code snippet omitted. ");
+        // Remove inline code
+        clean = clean.replace(/`[^`]+`/g, "");
+        // Remove markdown symbols (headers, bold, bullet points, links)
+        clean = clean.replace(/[#*_\-\[\]()]/g, " ");
+        // Replace multiple spaces/newlines with single space
+        clean = clean.replace(/\s+/g, " ").trim();
+
+        // Keep at most 2 sentences or max 160 chars for fast natural voice output
+        const sentences = clean.match(/[^.!?]+[.!?]+/g);
+        if (sentences && sentences.length > 0) {
+            clean = sentences.slice(0, 2).join(" ");
+        }
+        if (clean.length > 160) {
+            clean = clean.substring(0, 160) + "...";
+        }
+
+        return clean.trim();
+    }
+
     function speakResponseAndListenNext(text) {
         if (!("speechSynthesis" in window) || !text) return;
 
+        const spokenText = cleanTextForSpeech(text);
+        if (!spokenText) return;
+
         window.speechSynthesis.cancel(); // Stop prior speech
-        const utterance = new SpeechSynthesisUtterance(text);
-        utterance.rate = 1.0;
+        const utterance = new SpeechSynthesisUtterance(spokenText);
+        utterance.rate = 1.05;
         utterance.pitch = 1.0;
 
         if (selectedVoice) {
@@ -256,7 +283,7 @@ document.addEventListener("DOMContentLoaded", () => {
         }
 
         voiceOrb.className = "voice-orb speaking";
-        orbStatus.textContent = `🔊 Ultron Speaking: "${text.substring(0, 35)}..."`;
+        orbStatus.textContent = `🔊 Ultron Speaking: "${spokenText.substring(0, 35)}..."`;
 
         utterance.onend = () => {
             voiceOrb.className = "voice-orb listening";

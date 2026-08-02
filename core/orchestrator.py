@@ -62,7 +62,7 @@ class Orchestrator:
             intent_type = IntentType.SENSITIVE_ACTION
         elif any(k in text_lower for k in ["tap phone", "type on phone", "open app on phone", "read screen", "phone tap"]):
             intent_type = IntentType.PHONE_ACTION
-        elif any(k in text_lower for k in ["open", "type", "click", "launch", "screenshot"]):
+        elif any(k in text_lower for k in ["open", "launch", "start", "type", "click", "screenshot", "notepad", "settings", "calc", "chrome", "edge", "cmd"]):
             intent_type = IntentType.DESKTOP_ACTION
         elif any(k in text_lower for k in ["browse", "search", "navigate", "go to"]):
             intent_type = IntentType.BROWSER_ACTION
@@ -93,7 +93,7 @@ class Orchestrator:
     async def process_command(self, text: str, lang: str = "en", confirm_fn: Optional[Callable] = None) -> Dict[str, Any]:
         """
         Processes a single command transcript end-to-end.
-        Strips wake word noise ('hey atlas', 'play atlas', 'hi atlas', 'atlas', 'ultron') from input.
+        Fast path for local OS actions (open, launch, type, screenshot).
         """
         start_time = time.time()
 
@@ -123,13 +123,31 @@ class Orchestrator:
                 )
                 return {"status": "cancelled", "reason": "not confirmed"}
 
-        # Check for Screen Seeing / Vision commands
         text_lower = clean_text.lower()
+
+        # FAST PATH: Desktop Action (sub-50ms local execution, zero API network calls)
+        if intent.type == IntentType.DESKTOP_ACTION:
+            result = self._dispatch_desktop_action(clean_text)
+            app_name = result.get("data", {}).get("app_name", clean_text)
+            spoken_msg = f"Opened {app_name} on your laptop." if result.get("status") == "ok" else f"Could not open {app_name}."
+            result["response"] = spoken_msg
+            result["route"] = "LOCAL-FASTPATH"
+            self.tts.speak(spoken_msg)
+            self.audit.log(
+                intent=intent,
+                route_used="desktop_control_fastpath",
+                result=str(result),
+                blocked=False,
+                latency_ms=(time.time() - start_time) * 1000
+            )
+            return result
+
+        # Check for Screen Seeing / Vision commands
         if any(v in text_lower for v in ["see screen", "what is on my screen", "what's on screen", "look at screen", "analyze screen", "look at laptop", "read desktop"]):
             try:
                 from PIL import ImageGrab
                 img = ImageGrab.grab()
-                vision_prompt = f"The user asked: '{text}'. Analyze the active laptop screen screenshot and explain clearly what is visible, active apps, open documents, or requested information."
+                vision_prompt = f"Summarize in 2 crisp sentences for voice readout what is visible on this screen: '{clean_text}'"
                 resp_text, route_used = await self.router.route_vision(vision_prompt, img)
                 self.tts.speak(resp_text)
                 self.audit.log(intent=intent, route_used=route_used, result=resp_text, blocked=False, latency_ms=(time.time() - start_time) * 1000)
@@ -172,7 +190,8 @@ class Orchestrator:
             return {"status": "ok", "action": "search", "response": resp_str, "route": "browser_agent"}
 
         if intent.type == IntentType.QUERY:
-            response, route = await self.router.route(text)
+            voice_prompt = f"Answer concisely in max 2 clear sentences (no code blocks, no markdown formatting, no technical essays) for voice readout: {clean_text}"
+            response, route = await self.router.route(voice_prompt)
             self.tts.speak(response)
             self.audit.log(
                 intent=intent,
@@ -240,10 +259,9 @@ class Orchestrator:
 
     def _dispatch_desktop_action(self, text: str) -> Dict[str, Any]:
         text_lower = text.lower()
-        if "open" in text_lower or "launch" in text_lower:
-            # Extract target application
+        if any(k in text_lower for k in ["open", "launch", "start", "notepad", "settings", "calc", "calculator", "chrome", "edge", "cmd", "terminal", "explorer", "paint", "word", "excel"]):
             target = text_lower
-            for verb in ["open", "launch"]:
+            for verb in ["open", "launch", "start"]:
                 if verb in target:
                     target = target.split(verb)[-1]
             return open_app(target.strip())
@@ -252,7 +270,7 @@ class Orchestrator:
             return type_text(content)
         elif "screenshot" in text_lower:
             return screenshot()
-        return {"status": "ok", "action": text}
+        return open_app(text_lower.strip())
 
     def _dispatch_sensitive_action(self, text: str) -> Dict[str, Any]:
         text_lower = text.lower()
