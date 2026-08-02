@@ -106,26 +106,44 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     // Speech Synthesis (TTS) & Continuous Voice Loop
-    let continuousVoice = false;
+    let continuousVoice = true; // Continuous listening by default
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     let recognition = null;
 
     if (SpeechRecognition) {
         recognition = new SpeechRecognition();
-        recognition.continuous = false;
+        recognition.continuous = true;
         recognition.interimResults = false;
 
         recognition.onresult = (event) => {
-            const transcript = event.results[0][0].transcript;
-            cmdInput.value = transcript;
-            executeCommand(transcript);
+            const raw = event.results[event.results.length - 1][0].transcript;
+            
+            // Clean wake word noise ('hey atlas', 'play atlas', 'hi atlas', 'atlas')
+            const cleaned = raw.replace(/^(hey|play|hi|ok|hello)?\s*(atlas|ultron)\b\s*/i, "").trim();
+
+            if (!cleaned || cleaned.toLowerCase() === "atlas" || cleaned.toLowerCase() === "hey atlas" || cleaned.toLowerCase() === "play atlas") {
+                // User just called "Hey Atlas" -> Respond and listen for command
+                cmdInput.value = raw;
+                speakResponseAndListenNext("Yes, I am listening. What would you like me to do?");
+            } else {
+                cmdInput.value = cleaned;
+                executeCommand(cleaned);
+            }
         };
 
         recognition.onend = () => {
             isListening = false;
-            if (!window.speechSynthesis.speaking) {
+            if (continuousVoice && !window.speechSynthesis.speaking) {
+                try { recognition.start(); } catch(e) {}
+            } else if (!window.speechSynthesis.speaking) {
                 voiceOrb.classList.remove("listening");
                 orbStatus.textContent = 'Listening for "Hey Atlas" or click Mic...';
+            }
+        };
+
+        recognition.onerror = (e) => {
+            if (continuousVoice && e.error !== "aborted") {
+                setTimeout(() => { try { recognition.start(); } catch(err) {} }, 1000);
             }
         };
     }
@@ -135,26 +153,20 @@ document.addEventListener("DOMContentLoaded", () => {
 
         window.speechSynthesis.cancel(); // Stop prior speech
         const utterance = new SpeechSynthesisUtterance(text);
-        utterance.rate = 1.0;
+        utterance.rate = 1.05;
         utterance.pitch = 1.0;
 
         voiceOrb.classList.add("listening");
-        orbStatus.textContent = "Ultron Speaking Response...";
+        orbStatus.textContent = `Ultron Speaking: "${text.substring(0, 40)}..."`;
 
         utterance.onend = () => {
             voiceOrb.classList.remove("listening");
 
-            // Hands-free continuous loop: Ask next command and start listening automatically if continuous mode active
             if (continuousVoice && recognition) {
-                orbStatus.textContent = "Asking: What would you like to do next?...";
-                const followUp = new SpeechSynthesisUtterance("What would you like me to do next?");
-                followUp.onend = () => {
-                    orbStatus.textContent = "Listening for your voice command...";
-                    voiceOrb.classList.add("listening");
-                    isListening = true;
-                    try { recognition.start(); } catch(e) {}
-                };
-                window.speechSynthesis.speak(followUp);
+                orbStatus.textContent = "Listening for your voice command...";
+                voiceOrb.classList.add("listening");
+                isListening = true;
+                try { recognition.start(); } catch(e) {}
             } else {
                 orbStatus.textContent = 'Click Mic or say command...';
             }
@@ -210,16 +222,31 @@ document.addEventListener("DOMContentLoaded", () => {
         });
     });
 
+    function startMic() {
+        if (recognition && !isListening) {
+            try {
+                recognition.start();
+                isListening = true;
+                continuousVoice = true;
+                if (micBtn) micBtn.style.background = "linear-gradient(135deg, #00e676, #00b0ff)";
+                orbStatus.textContent = "Continuous Voice Active. Listening...";
+                voiceOrb.classList.add("listening");
+            } catch(e) {}
+        }
+    }
+
+    // Auto-start listening on first click anywhere
+    document.body.addEventListener("click", () => {
+        startMic();
+    }, { once: true });
+
     // Mic Button Listener
     if (micBtn && recognition) {
+        micBtn.style.background = "linear-gradient(135deg, #00e676, #00b0ff)";
         micBtn.addEventListener("click", () => {
             continuousVoice = !continuousVoice;
             if (continuousVoice) {
-                micBtn.style.background = "linear-gradient(135deg, #00e676, #00b0ff)";
-                orbStatus.textContent = "Continuous Voice Mode Active. Listening...";
-                voiceOrb.classList.add("listening");
-                isListening = true;
-                try { recognition.start(); } catch(e) {}
+                startMic();
             } else {
                 micBtn.style.background = "";
                 continuousVoice = false;
@@ -227,7 +254,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 try { recognition.stop(); } catch(e) {}
                 window.speechSynthesis.cancel();
                 voiceOrb.classList.remove("listening");
-                orbStatus.textContent = 'Listening for "Hey Atlas" or click Mic...';
+                orbStatus.textContent = 'Listening paused. Click Mic to resume.';
             }
         });
     } else if (micBtn) {

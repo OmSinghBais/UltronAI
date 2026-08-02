@@ -1,4 +1,5 @@
 import asyncio
+import re
 import time
 from typing import Optional, Callable, Dict, Any, Union
 from pathlib import Path
@@ -92,12 +93,25 @@ class Orchestrator:
     async def process_command(self, text: str, lang: str = "en", confirm_fn: Optional[Callable] = None) -> Dict[str, Any]:
         """
         Processes a single command transcript end-to-end.
+        Strips wake word noise ('hey atlas', 'play atlas', 'hi atlas', 'atlas', 'ultron') from input.
         """
         start_time = time.time()
-        intent = self.classify_intent(text, lang)
+
+        # Clean leading wake word phrases
+        clean_text = re.sub(
+            r'^(hey|play|hi|ok|hello)?\s*(atlas|ultron)\b\s*',
+            '',
+            text.strip(),
+            flags=re.IGNORECASE
+        ).strip()
+
+        if not clean_text:
+            clean_text = text.strip()
+
+        intent = self.classify_intent(clean_text, lang)
 
         if intent.requires_confirmation:
-            confirmed = await self.confirm(f"This will execute: {text}.", confirm_fn=confirm_fn)
+            confirmed = await self.confirm(f"This will execute: {clean_text}.", confirm_fn=confirm_fn)
             if not confirmed:
                 self.tts.speak("Action cancelled.")
                 self.audit.log(
@@ -110,7 +124,7 @@ class Orchestrator:
                 return {"status": "cancelled", "reason": "not confirmed"}
 
         # Check for Screen Seeing / Vision commands
-        text_lower = text.lower()
+        text_lower = clean_text.lower()
         if any(v in text_lower for v in ["see screen", "what is on my screen", "what's on screen", "look at screen", "analyze screen", "look at laptop", "read desktop"]):
             try:
                 from PIL import ImageGrab
