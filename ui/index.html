@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ATLAS — Voice Assistant & Control Hub</title>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="background-globes">
+        <div class="globe globe-1"></div>
+        <div class="globe globe-2"></div>
+    </div>
+
+    <!-- Active Control Indicator (Safety Rail #5) -->
+    <div id="control-indicator" class="control-indicator hidden">
+        <span class="pulse-dot"></span>
+        <span class="indicator-text">ATLAS ACTIVE CONTROL</span>
+    </div>
+
+    <div class="container">
+        <header class="header">
+            <div class="brand">
+                <div class="logo-icon">⚡</div>
+                <div>
+                    <h1>ATLAS <span>v1.0</span></h1>
+                    <p class="subtitle">Voice-Driven Laptop & Phone Control Engine</p>
+                </div>
+            </div>
+            <div class="system-status">
+                <div class="status-badge online">
+                    <span class="dot"></span> Core System: Online
+                </div>
+                <div class="status-badge phone-connected" id="phone-status-badge">
+                    <span class="dot"></span> Phone: Connected (10.195.17.165)
+                </div>
+            </div>
+        </header>
+
+        <main class="grid-layout">
+            <!-- Left Column: Voice Orb & Interactive Command Bar -->
+            <section class="card voice-section">
+                <div class="orb-container">
+                    <div class="voice-orb" id="voice-orb">
+                        <div class="orb-core"></div>
+                        <div class="orb-wave"></div>
+                    </div>
+                    <p class="orb-status" id="orb-status">Listening for "Hey Atlas" or click Mic...</p>
+                </div>
+
+                <div class="input-bar-container">
+                    <button class="mic-btn" id="mic-btn" title="Toggle Mic Input">
+                        <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
+                            <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
+                            <line x1="12" y1="19" x2="12" y2="23"></line>
+                            <line x1="8" y1="23" x2="16" y2="23"></line>
+                        </svg>
+                    </button>
+                    <input type="text" id="cmd-input" placeholder="Say 'Hey Atlas' or type command e.g. 'open notepad', 'what is python'..." autofocus>
+                    <button class="send-btn" id="send-btn">Execute</button>
+                </div>
+
+                <div class="quick-commands">
+                    <span class="quick-label">Try Commands:</span>
+                    <button class="chip" data-cmd="what is quantum computing">Query AI</button>
+                    <button class="chip" data-cmd="open notepad">Open App</button>
+                    <button class="chip" data-cmd="take a screenshot">Screenshot</button>
+                    <button class="chip" data-cmd="read phone screen">Read Phone</button>
+                    <button class="chip danger" data-cmd="delete file storage/temp.txt">Delete (Confirmation Gated)</button>
+                </div>
+            </section>
+
+            <!-- Right Column: Status & Live Metrics -->
+            <section class="card metrics-section">
+                <h2>Execution Metrics</h2>
+                <div class="metrics-grid">
+                    <div class="metric-box">
+                        <span class="metric-title">Active AI Route</span>
+                        <span class="metric-value route-val" id="metric-route">GEMINI-1.5-FLASH</span>
+                    </div>
+                    <div class="metric-box">
+                        <span class="metric-title">Last Response Latency</span>
+                        <span class="metric-value" id="metric-latency">42 ms</span>
+                    </div>
+                </div>
+
+                <div class="response-box">
+                    <div class="box-header">
+                        <span>Last Speech Feedback (TTS)</span>
+                        <span class="tag" id="response-tag">READY</span>
+                    </div>
+                    <div class="response-text" id="response-text">
+                        "System initialized. Standing by for voice or laptop/phone commands."
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <!-- Live Audit Trail Log -->
+        <footer class="card audit-card">
+            <div class="audit-header">
+                <h2>📜 Immutable JSONL Audit Trail</h2>
+                <span class="audit-count" id="audit-count">0 Entries Logged</span>
+            </div>
+            <div class="audit-log-box" id="audit-log-box">
+                <div class="log-line text-muted">System audit logger active. Commands will be recorded below...</div>
+            </div>
+        </footer>
+    </div>
+
+    <!-- Confirmation Modal Dialog -->
+    <div class="modal-overlay hidden" id="confirm-modal">
+        <div class="modal-card">
+            <div class="modal-icon">⚠️</div>
+            <h3>Sensitive Action Confirmation</h3>
+            <p id="modal-prompt-text">This action will modify or delete data. Do you wish to proceed?</p>
+            <div class="modal-actions">
+                <button class="btn btn-cancel" id="btn-cancel">Cancel</button>
+                <button class="btn btn-confirm" id="btn-confirm">Confirm (Yes)</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
