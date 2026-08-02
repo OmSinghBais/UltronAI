@@ -1,6 +1,6 @@
 import google.generativeai as genai
 import httpx
-from typing import Tuple, List
+from typing import Tuple, List, Any
 from config.settings import settings
 
 
@@ -106,6 +106,31 @@ class Router:
                 )
 
         return await self._ollama_generate(prompt), "ollama"
+
+    async def route_vision(self, prompt: str, image_data: Any) -> Tuple[str, str]:
+        """
+        Routes prompt + image to Gemini Multimodal models for screen visual reasoning.
+        """
+        if self.api_keys and await self.is_online():
+            errors = []
+            for idx, key in enumerate(self.api_keys, 1):
+                try:
+                    genai.configure(api_key=key)
+                    vision_models = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash", "gemini-3.6-flash"]
+                    for model_name in vision_models:
+                        try:
+                            model = genai.GenerativeModel(model_name)
+                            resp = model.generate_content([prompt, image_data])
+                            if resp and hasattr(resp, "text") and resp.text:
+                                return resp.text.strip(), f"gemini-vision (key-{idx}/{model_name})"
+                        except Exception as e:
+                            errors.append(f"Key-{idx} [{model_name}]: {e}")
+                except Exception as e:
+                    errors.append(f"Key-{idx} config: {e}")
+
+            return f"[Vision Analysis Fallback] Screen image captured, but Gemini Vision API was unreachable: {errors[0] if errors else 'error'}", "vision-fallback"
+
+        return "[Offline Mode] Vision analysis requires active internet connection for Gemini Multimodal API.", "offline"
 
     async def _ollama_generate(self, prompt: str) -> str:
         """Sends generation request to local Ollama server."""

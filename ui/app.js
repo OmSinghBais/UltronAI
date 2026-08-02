@@ -70,22 +70,29 @@ document.addEventListener("DOMContentLoaded", () => {
             metricLatency.textContent = `${latency} ms`;
             metricRoute.textContent = (data.route || "CORE-ENGINE").toUpperCase();
 
+            let textToSpeak = "";
             if (data.status === "ok") {
                 responseTag.textContent = "SUCCESS";
                 responseTag.style.background = "rgba(0, 230, 118, 0.15)";
                 responseTag.style.color = "#00e676";
-                responseText.textContent = data.response || data.action || "Action executed successfully.";
+                textToSpeak = data.response || data.action || "Action executed successfully.";
+                responseText.textContent = textToSpeak;
             } else if (data.status === "cancelled") {
                 responseTag.textContent = "CANCELLED";
                 responseTag.style.background = "rgba(255, 82, 82, 0.15)";
                 responseTag.style.color = "#ff5252";
-                responseText.textContent = "Action cancelled by security gate.";
+                textToSpeak = "Action cancelled by security gate.";
+                responseText.textContent = textToSpeak;
             } else {
                 responseTag.textContent = "ERROR";
                 responseTag.style.background = "rgba(255, 82, 82, 0.15)";
                 responseTag.style.color = "#ff5252";
-                responseText.textContent = data.error || data.reason || "Execution failed.";
+                textToSpeak = data.error || data.reason || "Execution failed.";
+                responseText.textContent = textToSpeak;
             }
+
+            // Speak response out loud & trigger continuous auto-voice loop
+            speakResponseAndListenNext(textToSpeak);
 
             // Append Audit Entry
             appendAuditLog(cmd, data.intent_type || "action", data.route || "core", data.status === "cancelled", data.response || JSON.stringify(data));
@@ -94,9 +101,66 @@ document.addEventListener("DOMContentLoaded", () => {
             responseText.textContent = `Error connecting to ATLAS engine: ${err.message}`;
         } finally {
             voiceOrb.classList.remove("listening");
-            orbStatus.textContent = 'Listening for "Hey Atlas" or click Mic...';
             setTimeout(() => controlIndicator.classList.add("hidden"), 1500);
         }
+    }
+
+    // Speech Synthesis (TTS) & Continuous Voice Loop
+    let continuousVoice = false;
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    let recognition = null;
+
+    if (SpeechRecognition) {
+        recognition = new SpeechRecognition();
+        recognition.continuous = false;
+        recognition.interimResults = false;
+
+        recognition.onresult = (event) => {
+            const transcript = event.results[0][0].transcript;
+            cmdInput.value = transcript;
+            executeCommand(transcript);
+        };
+
+        recognition.onend = () => {
+            isListening = false;
+            if (!window.speechSynthesis.speaking) {
+                voiceOrb.classList.remove("listening");
+                orbStatus.textContent = 'Listening for "Hey Atlas" or click Mic...';
+            }
+        };
+    }
+
+    function speakResponseAndListenNext(text) {
+        if (!("speechSynthesis" in window) || !text) return;
+
+        window.speechSynthesis.cancel(); // Stop prior speech
+        const utterance = new SpeechSynthesisUtterance(text);
+        utterance.rate = 1.0;
+        utterance.pitch = 1.0;
+
+        voiceOrb.classList.add("listening");
+        orbStatus.textContent = "Ultron Speaking Response...";
+
+        utterance.onend = () => {
+            voiceOrb.classList.remove("listening");
+
+            // Hands-free continuous loop: Ask next command and start listening automatically if continuous mode active
+            if (continuousVoice && recognition) {
+                orbStatus.textContent = "Asking: What would you like to do next?...";
+                const followUp = new SpeechSynthesisUtterance("What would you like me to do next?");
+                followUp.onend = () => {
+                    orbStatus.textContent = "Listening for your voice command...";
+                    voiceOrb.classList.add("listening");
+                    isListening = true;
+                    try { recognition.start(); } catch(e) {}
+                };
+                window.speechSynthesis.speak(followUp);
+            } else {
+                orbStatus.textContent = 'Click Mic or say command...';
+            }
+        };
+
+        window.speechSynthesis.speak(utterance);
     }
 
     // Append Log to Audit Box
@@ -146,35 +210,27 @@ document.addEventListener("DOMContentLoaded", () => {
         });
     });
 
-    // Web Speech Recognition for Mic Button
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (SpeechRecognition) {
-        const recognition = new SpeechRecognition();
-        recognition.continuous = false;
-        recognition.interimResults = false;
-
+    // Mic Button Listener
+    if (micBtn && recognition) {
         micBtn.addEventListener("click", () => {
-            if (isListening) {
-                recognition.stop();
-            } else {
-                recognition.start();
-                orbStatus.textContent = "Listening to your voice...";
+            continuousVoice = !continuousVoice;
+            if (continuousVoice) {
+                micBtn.style.background = "linear-gradient(135deg, #00e676, #00b0ff)";
+                orbStatus.textContent = "Continuous Voice Mode Active. Listening...";
                 voiceOrb.classList.add("listening");
                 isListening = true;
+                try { recognition.start(); } catch(e) {}
+            } else {
+                micBtn.style.background = "";
+                continuousVoice = false;
+                isListening = false;
+                try { recognition.stop(); } catch(e) {}
+                window.speechSynthesis.cancel();
+                voiceOrb.classList.remove("listening");
+                orbStatus.textContent = 'Listening for "Hey Atlas" or click Mic...';
             }
         });
-
-        recognition.onresult = (event) => {
-            const transcript = event.results[0][0].transcript;
-            cmdInput.value = transcript;
-            executeCommand(transcript);
-        };
-
-        recognition.onend = () => {
-            isListening = false;
-            voiceOrb.classList.remove("listening");
-        };
-    } else {
+    } else if (micBtn) {
         micBtn.title = "Web Speech API not supported in this browser. Use text bar.";
     }
 });

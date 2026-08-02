@@ -109,6 +109,54 @@ class Orchestrator:
                 )
                 return {"status": "cancelled", "reason": "not confirmed"}
 
+        # Check for Screen Seeing / Vision commands
+        text_lower = text.lower()
+        if any(v in text_lower for v in ["see screen", "what is on my screen", "what's on screen", "look at screen", "analyze screen", "look at laptop", "read desktop"]):
+            try:
+                from PIL import ImageGrab
+                img = ImageGrab.grab()
+                vision_prompt = f"The user asked: '{text}'. Analyze the active laptop screen screenshot and explain clearly what is visible, active apps, open documents, or requested information."
+                resp_text, route_used = await self.router.route_vision(vision_prompt, img)
+                self.tts.speak(resp_text)
+                self.audit.log(intent=intent, route_used=route_used, result=resp_text, blocked=False, latency_ms=(time.time() - start_time) * 1000)
+                return {"status": "ok", "action": "see_screen", "response": resp_text, "route": route_used}
+            except Exception as e:
+                err_msg = f"Screen capture vision analysis error: {e}"
+                self.tts.speak(err_msg)
+                return {"status": "error", "error": err_msg}
+
+        # Check for Search & Summarize commands ("search python news", "open chrome and search...")
+        if "search" in text_lower or "browse" in text_lower or "google" in text_lower:
+            # First open browser if requested
+            if "chrome" in text_lower or "open" in text_lower:
+                open_app("chrome.exe")
+
+            # Extract search query
+            query = text_lower
+            for prefix in ["open chrome and search", "search for", "search", "browse for", "google", "find"]:
+                if prefix in query:
+                    query = query.split(prefix)[-1].strip()
+
+            if not query:
+                query = text
+
+            search_res = search(query, headless=True)
+            if search_res.get("status") == "ok":
+                page_data = read_page(search_res["data"]["url"], headless=True)
+                content = page_data.get("data", {}).get("content", "")
+                if content:
+                    summary_prompt = f"User asked: '{text}'. Summarize the following search result page in 3 clear sentences for voice read-out:\n\n{content[:3000]}"
+                    summary_text, route_used = await self.router.route(summary_prompt)
+                    resp_str = f"I searched for '{query}'. Here is what I found: {summary_text}"
+                else:
+                    resp_str = f"I opened Chrome and searched for '{query}'."
+            else:
+                resp_str = f"I opened Chrome and searched for '{query}'."
+
+            self.tts.speak(resp_str)
+            self.audit.log(intent=intent, route_used="browser_automation", result=resp_str, blocked=False, latency_ms=(time.time() - start_time) * 1000)
+            return {"status": "ok", "action": "search", "response": resp_str, "route": "browser_agent"}
+
         if intent.type == IntentType.QUERY:
             response, route = await self.router.route(text)
             self.tts.speak(response)
@@ -123,7 +171,10 @@ class Orchestrator:
 
         elif intent.type == IntentType.DESKTOP_ACTION:
             result = self._dispatch_desktop_action(text)
-            self.tts.speak(f"Executed: {result.get('action', 'desktop action')}")
+            app_name = result.get("data", {}).get("app_name", text)
+            spoken_msg = f"Opened {app_name} on your laptop." if result.get("status") == "ok" else f"Could not open {app_name}."
+            result["response"] = spoken_msg
+            self.tts.speak(spoken_msg)
             self.audit.log(
                 intent=intent,
                 route_used="desktop_control",
@@ -135,7 +186,9 @@ class Orchestrator:
 
         elif intent.type == IntentType.SENSITIVE_ACTION:
             result = self._dispatch_sensitive_action(text)
-            self.tts.speak(f"Executed sensitive action: {result.get('action', text)}")
+            spoken_msg = f"Executed sensitive action: {text}"
+            result["response"] = spoken_msg
+            self.tts.speak(spoken_msg)
             self.audit.log(
                 intent=intent,
                 route_used="sensitive_control",
@@ -147,7 +200,9 @@ class Orchestrator:
 
         elif intent.type == IntentType.PHONE_ACTION:
             result = await self._dispatch_phone_action(text)
-            self.tts.speak(f"Phone action executed.")
+            spoken_msg = result.get("response", "Executed action on your phone.")
+            result["response"] = spoken_msg
+            self.tts.speak(spoken_msg)
             self.audit.log(
                 intent=intent,
                 route_used="phone_control",
@@ -205,15 +260,25 @@ class Orchestrator:
         text_lower = text.lower()
         try:
             if "tap phone" in text_lower or "phone tap" in text_lower:
-                return await self.phone.tap(x=500, y=1000)
+                res = await self.phone.tap(x=500, y=1000)
+                res["response"] = "Tapped phone screen."
+                return res
             elif "type on phone" in text_lower:
                 content = text_lower.split("type on phone")[-1].strip()
-                return await self.phone.type_text(content)
+                res = await self.phone.type_text(content)
+                res["response"] = f"Typed '{content}' on phone."
+                return res
             elif "open app on phone" in text_lower:
                 package = text_lower.split("open app on phone")[-1].strip()
-                return await self.phone.open_app(package)
-            elif "read screen" in text_lower:
-                return await self.phone.read_screen()
+                res = await self.phone.open_app(package)
+                res["response"] = f"Opened app {package} on phone."
+                return res
+            elif "read screen" in text_lower or "see phone screen" in text_lower:
+                res = await self.phone.read_screen()
+                nodes = res.get("elements", [])
+                node_summary = f"Phone screen contains {len(nodes)} interactive elements."
+                res["response"] = node_summary
+                return res
             else:
                 return {"status": "error", "error": f"Unknown phone action: {text}"}
         except Exception as e:
