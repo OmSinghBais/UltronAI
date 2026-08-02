@@ -189,6 +189,19 @@ body {
     box-shadow: 0 0 10px var(--accent-blue);
 }
 
+.voice-select {
+    background: rgba(0, 0, 0, 0.4);
+    color: var(--text-main);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    padding: 2px 8px;
+    font-size: 0.8rem;
+    font-family: inherit;
+    outline: none;
+    cursor: pointer;
+    max-width: 180px;
+}
+
 .card {
     background: var(--card-bg);
     border: 1px solid var(--border-color);

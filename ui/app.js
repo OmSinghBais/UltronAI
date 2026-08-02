@@ -23,12 +23,51 @@ document.addEventListener("DOMContentLoaded", () => {
     let isListening = false;
     let pendingConfirmResolve = null;
 
-    // Natural Voice Picker (prioritize natural / Google / neural voices)
+    const voiceSelect = document.getElementById("voice-select");
+
+    // Phonetic & Mishearing Correction Map
+    function cleanSpeechTranscript(raw) {
+        let text = raw.trim();
+        
+        // Strip wake word prefixes
+        text = text.replace(/^(hey|play|pay|hi|ok|hello|open)?\s*(atlas|ultron)\b\s*/i, "").trim();
+
+        // Common phonetic corrections
+        const phoneticFixes = [
+            [/\bsea screen\b/gi, "see screen"],
+            [/\bc screen\b/gi, "see screen"],
+            [/\bshe screen\b/gi, "see screen"],
+            [/\bnote pad\b/gi, "notepad"],
+            [/\bnote-pad\b/gi, "notepad"],
+            [/\bchrom\b/gi, "chrome"],
+            [/\bchrome browser\b/gi, "chrome"],
+            [/\bsetting\b/gi, "settings"],
+            [/\bscreen shot\b/gi, "screenshot"],
+        ];
+
+        for (const [pattern, replacement] of phoneticFixes) {
+            text = text.replace(pattern, replacement);
+        }
+
+        return text.trim();
+    }
+
+    // Natural Voice Picker (populates #voice-select dropdown)
     let selectedVoice = null;
     function loadVoices() {
         if (!("speechSynthesis" in window)) return;
         const voices = window.speechSynthesis.getVoices();
         if (!voices.length) return;
+
+        if (voiceSelect) {
+            voiceSelect.innerHTML = "";
+            voices.forEach((v, idx) => {
+                const opt = document.createElement("option");
+                opt.value = idx;
+                opt.textContent = `${v.name} (${v.lang})`;
+                voiceSelect.appendChild(opt);
+            });
+        }
 
         // Preferred voice priority list
         const priorities = [
@@ -42,9 +81,10 @@ document.addEventListener("DOMContentLoaded", () => {
         ];
 
         for (const pref of priorities) {
-            const found = voices.find(v => v.name.includes(pref) || v.name.toLowerCase().includes(pref.toLowerCase()));
-            if (found) {
-                selectedVoice = found;
+            const foundIdx = voices.findIndex(v => v.name.includes(pref) || v.name.toLowerCase().includes(pref.toLowerCase()));
+            if (foundIdx !== -1) {
+                selectedVoice = voices[foundIdx];
+                if (voiceSelect) voiceSelect.value = foundIdx;
                 break;
             }
         }
@@ -52,9 +92,17 @@ document.addEventListener("DOMContentLoaded", () => {
             selectedVoice = voices.find(v => v.lang.startsWith("en")) || voices[0];
         }
     }
+
     if ("speechSynthesis" in window) {
         window.speechSynthesis.onvoiceschanged = loadVoices;
         loadVoices();
+    }
+
+    if (voiceSelect) {
+        voiceSelect.addEventListener("change", (e) => {
+            const voices = window.speechSynthesis.getVoices();
+            selectedVoice = voices[e.target.value] || selectedVoice;
+        });
     }
 
     // Execute Command
@@ -151,11 +199,23 @@ document.addEventListener("DOMContentLoaded", () => {
         recognition.continuous = true;
         recognition.interimResults = false;
 
+        recognition.onspeechstart = () => {
+            // Speech Interruption / Barge-in: Cut off Ultron immediately when user starts speaking!
+            if ("speechSynthesis" in window && window.speechSynthesis.speaking) {
+                window.speechSynthesis.cancel();
+                voiceOrb.className = "voice-orb listening";
+                orbStatus.textContent = "🎙️ Listening to you...";
+            }
+        };
+
         recognition.onresult = (event) => {
+            // Cut off any ongoing speech synthesis immediately
+            if ("speechSynthesis" in window && window.speechSynthesis.speaking) {
+                window.speechSynthesis.cancel();
+            }
+
             const raw = event.results[event.results.length - 1][0].transcript;
-            
-            // Clean wake word noise ('hey atlas', 'play atlas', 'hi atlas', 'atlas')
-            const cleaned = raw.replace(/^(hey|play|hi|ok|hello)?\s*(atlas|ultron)\b\s*/i, "").trim();
+            const cleaned = cleanSpeechTranscript(raw);
 
             if (!cleaned || cleaned.toLowerCase() === "atlas" || cleaned.toLowerCase() === "hey atlas" || cleaned.toLowerCase() === "play atlas") {
                 cmdInput.value = raw;
