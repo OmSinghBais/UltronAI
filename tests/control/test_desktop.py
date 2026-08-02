@@ -14,24 +14,25 @@ from control.desktop import click, delete_path, open_app, screenshot, type_text
 
 class TestDesktopControl(unittest.TestCase):
 
-    @patch("subprocess.Popen")
-    def test_open_app_success(self, mock_popen):
+    @patch("os.startfile")
+    def test_open_app_success(self, mock_startfile):
         res = open_app("Calculator")
         self.assertEqual(res["status"], "ok")
         self.assertEqual(res["action"], "open_app")
-        self.assertEqual(res["data"]["app_name"], "Calculator")
-        mock_popen.assert_called_once()
+        self.assertIn("calc.exe", res["data"]["app_name"])
+        mock_startfile.assert_called_once()
 
     def test_open_app_empty_name(self):
         res = open_app("")
         self.assertEqual(res["status"], "error")
         self.assertIn("empty", res["error"])
 
+    @patch("os.startfile", side_effect=Exception("Failed to launch"))
     @patch("subprocess.Popen", side_effect=Exception("Failed to launch"))
-    def test_open_app_exception(self, mock_popen):
+    def test_open_app_exception(self, mock_popen, mock_startfile):
         res = open_app("NonExistentApp")
         self.assertEqual(res["status"], "error")
-        self.assertIn("Failed to open application", res["error"])
+        self.assertIn("failed", res["error"].lower())
 
     @patch("control.desktop.pyautogui")
     def test_type_text_success(self, mock_pyautogui):
