@@ -10,6 +10,7 @@ Functions:
 """
 
 import base64
+import ctypes
 import os
 import platform
 import re
@@ -48,36 +49,81 @@ def open_app(app_name: str) -> Dict[str, Any]:
 
     system = platform.system()
 
-    # Windows application alias mapping
+    # Windows application alias mapping — use full exe names and URI schemes
     win_alias = {
-        "notepad": "notepad",
-        "calculator": "calc",
-        "calc": "calc",
-        "paint": "mspaint",
-        "chrome": "chrome",
-        "edge": "msedge",
-        "browser": "msedge",
-        "terminal": "cmd",
-        "cmd": "cmd",
-        "command prompt": "cmd",
-        "explorer": "explorer",
-        "file manager": "explorer",
-        "wordpad": "wordpad",
-        "settings": "ms-settings:"
+        "notepad": "notepad.exe",
+        "calculator": "calc.exe",
+        "calc": "calc.exe",
+        "paint": "mspaint.exe",
+        "chrome": "chrome.exe",
+        "google chrome": "chrome.exe",
+        "edge": "msedge.exe",
+        "microsoft edge": "msedge.exe",
+        "browser": "msedge.exe",
+        "terminal": "wt.exe",          # Windows Terminal
+        "cmd": "cmd.exe",
+        "command prompt": "cmd.exe",
+        "powershell": "powershell.exe",
+        "explorer": "explorer.exe",
+        "file manager": "explorer.exe",
+        "files": "explorer.exe",
+        "wordpad": "wordpad.exe",
+        "word": "winword.exe",
+        "excel": "excel.exe",
+        "settings": "ms-settings:",
+        "control panel": "control.exe",
+        "task manager": "taskmgr.exe",
+        "spotify": "spotify.exe",
+        "discord": "discord.exe",
+        "vlc": "vlc.exe",
+        "vs code": "code.exe",
+        "vscode": "code.exe",
+        "visual studio code": "code.exe",
     }
 
-    target_app = win_alias.get(cleaned_name.lower(), cleaned_name)
+    target_app = win_alias.get(cleaned_name.lower(), cleaned_name if cleaned_name.endswith(".exe") or ":" in cleaned_name else cleaned_name + ".exe")
 
     try:
         if system == "Darwin":
-            cmd = ["open", "-a", target_app]
-            subprocess.Popen(cmd)
+            subprocess.Popen(["open", "-a", target_app])
         elif system == "Windows":
-            # Use os.system / start command for robust Windows shell execution
-            os.system(f'start "" "{target_app}"')
+            launch_errors = []
+            launched = False
+
+            # Tier 1: os.startfile (most reliable for GUI apps)
+            try:
+                os.startfile(target_app)
+                launched = True
+            except Exception as e1:
+                launch_errors.append(f"startfile: {e1}")
+
+            # Tier 2: subprocess.Popen directly (no shell)
+            if not launched:
+                try:
+                    subprocess.Popen([target_app], shell=False)
+                    launched = True
+                except Exception as e2:
+                    launch_errors.append(f"Popen: {e2}")
+
+            # Tier 3: cmd /c start (shell fallback)
+            if not launched:
+                try:
+                    subprocess.Popen(
+                        ["cmd.exe", "/c", "start", "", target_app],
+                        shell=False,
+                        creationflags=subprocess.CREATE_NO_WINDOW
+                    )
+                    launched = True
+                except Exception as e3:
+                    launch_errors.append(f"cmd start: {e3}")
+
+            if not launched:
+                return {
+                    "status": "error",
+                    "error": f"All launch methods failed for '{target_app}': {'; '.join(launch_errors)}"
+                }
         else:
-            cmd = ["xdg-open", target_app]
-            subprocess.Popen(cmd)
+            subprocess.Popen(["xdg-open", target_app])
 
         return {
             "status": "ok",
