@@ -6,10 +6,10 @@ from config.settings import settings
 
 class Router:
     """
-    Dual-engine reasoning router for ATLAS.
-    Routes queries to Google Gemini API when an API key is configured,
-    trying available model identifiers (gemma-4-31b-it, gemini-2.0-flash, etc.).
-    Falls back to local Ollama when offline or when no Gemini API key is configured.
+    Dual-engine reasoning router for ATLAS with multi-key automatic rotation pool.
+    Tries configured API keys in order (Primary -> Secondary -> Tertiary),
+    querying models (gemma-4-31b-it, gemini-2.0-flash, etc.).
+    Falls back to local Ollama when offline or when no Gemini API keys are configured.
     """
     PREFERRED_MODELS: List[str] = [
         "gemma-4-31b-it",
@@ -20,15 +20,10 @@ class Router:
     ]
 
     def __init__(self):
-        self.gemini = None
-        self.api_key_configured = False
-        if settings.gemini_api_key and settings.gemini_api_key != "your_gemini_api_key_here":
-            try:
-                genai.configure(api_key=settings.gemini_api_key)
-                self.gemini = genai.GenerativeModel("gemma-4-31b-it")
-                self.api_key_configured = True
-            except Exception:
-                self.gemini = None
+        self.api_keys: List[str] = [
+            k for k in [settings.gemini_api_key, settings.gemini_api_key_2, settings.gemini_api_key_3]
+            if k and k != "your_gemini_api_key_here"
+        ]
 
     async def is_online(self) -> bool:
         """Checks internet connectivity by attempting a fast GET ping."""
@@ -41,36 +36,38 @@ class Router:
 
     async def route(self, prompt: str) -> Tuple[str, str]:
         """
-        Routes prompt to Gemini if configured and online.
+        Routes prompt to Gemini using multi-key automatic rotation pool if online.
         Returns tuple of (response_text, route_used).
         """
-        if self.api_key_configured and await self.is_online():
+        if self.api_keys and await self.is_online():
             errors = []
-            # Try preferred models in sequence
-            for model_name in self.PREFERRED_MODELS:
+            # Rotate through configured keys
+            for idx, key in enumerate(self.api_keys, 1):
                 try:
-                    model = genai.GenerativeModel(model_name)
-                    resp = model.generate_content(prompt)
-                    if resp and hasattr(resp, "text") and resp.text:
-                        return resp.text.strip(), f"gemini ({model_name})"
+                    genai.configure(api_key=key)
                 except Exception as e:
-                    errors.append(f"{model_name}: {e}")
+                    errors.append(f"Key {idx} config error: {e}")
+                    continue
 
-            # If API key is present but Google Gemini returns error (e.g. rate limit 429 or 403)
+                for model_name in self.PREFERRED_MODELS:
+                    try:
+                        model = genai.GenerativeModel(model_name)
+                        resp = model.generate_content(prompt)
+                        if resp and hasattr(resp, "text") and resp.text:
+                            return resp.text.strip(), f"gemini (key-{idx}/{model_name})"
+                    except Exception as e:
+                        errors.append(f"Key-{idx} [{model_name}]: {e}")
+
+            # If all keys/models hit quota limits or errors
             error_details = errors[0] if errors else "API call failed"
             if "429" in error_details or "Quota" in error_details:
                 return (
-                    "[Gemini API Quota Exceeded] Free tier rate limit reached on your key. Please retry in 30 seconds or generate a key at https://aistudio.google.com/",
-                    "gemini"
-                )
-            elif "403" in error_details or "denied" in error_details.lower():
-                return (
-                    "[Gemini API Key Error] Key was rejected by Google AI Studio. Please use a valid key starting with 'AIzaSy...' from https://aistudio.google.com/",
+                    f"[Gemini Multi-Key Quota Limit] Tried all {len(self.api_keys)} keys. Rate limit reached. Generate keys at https://aistudio.google.com/",
                     "gemini"
                 )
             else:
                 return (
-                    f"[Gemini API Error] {error_details[:150]}",
+                    f"[Gemini Multi-Key Error] {error_details[:150]}",
                     "gemini"
                 )
 
