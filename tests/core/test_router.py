@@ -7,6 +7,7 @@ from core.router import Router
 async def test_falls_back_to_ollama_when_offline():
     """Verify router falls back to Ollama (llama3.2) when internet is offline."""
     router = Router()
+    router.api_keys = []
     with patch.object(router, "is_online", AsyncMock(return_value=False)):
         with patch.object(router, "_ollama_generate", AsyncMock(return_value="local llama3.2 answer")):
             text, route = await router.route("What is the capital of France?")
@@ -17,9 +18,9 @@ async def test_falls_back_to_ollama_when_offline():
 
 @pytest.mark.asyncio
 async def test_routes_to_gemini_when_online():
-    """Verify router routes to Gemini when online and API key is set."""
+    """Verify router routes to Gemini REST API when online and keys are configured."""
     router = Router()
-    router.api_key = "test_key"
+    router.api_keys = ["mock-key-1"]
 
     mock_post_resp = MagicMock()
     mock_post_resp.status_code = 200
@@ -36,7 +37,7 @@ async def test_routes_to_gemini_when_online():
         with patch("httpx.AsyncClient", return_value=mock_client):
             text, route = await router.route("What is the capital of France?")
 
-    assert route == "gemini"
+    assert "gemini" in route
     assert text == "Paris is the capital of France."
 
 
@@ -44,7 +45,7 @@ async def test_routes_to_gemini_when_online():
 async def test_falls_back_to_ollama_on_gemini_exception():
     """Verify router falls back to Ollama when Gemini API raises an exception or fails."""
     router = Router()
-    router.api_key = "test_key"
+    router.api_keys = ["test_key"]
 
     with patch.object(router, "is_online", AsyncMock(return_value=True)):
         with patch("httpx.AsyncClient", side_effect=Exception("Network error")):

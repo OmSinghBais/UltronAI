@@ -10,8 +10,10 @@ Functions:
 """
 
 import base64
+import ctypes
 import os
 import platform
+import re
 import shutil
 import subprocess
 from io import BytesIO
@@ -32,32 +34,112 @@ except ImportError:
 def open_app(app_name: str) -> Dict[str, Any]:
     """
     Opens an application by name on macOS, Windows, or Linux.
+    Cleans prompt noise ('in laptop', 'on my laptop', 'app') and launches via OS shell.
     """
     if not app_name or not app_name.strip():
         return {"status": "error", "error": "Application name cannot be empty"}
 
     action_name = "open_app"
-    app_name = app_name.strip()
+    raw_name = app_name.strip()
+    
+    # Strip common command filler words
+    cleaned_name = re.sub(
+        r'\b(in|on|my|the|laptop|pc|desktop|app|application|please|can|you)\b',
+        '',
+        raw_name,
+        flags=re.IGNORECASE
+    ).strip()
+    
+    if not cleaned_name:
+        cleaned_name = raw_name
+
     system = platform.system()
+
+    # Windows application alias mapping — use full exe names and URI schemes
+    win_alias = {
+        "notepad": "notepad.exe",
+        "calculator": "calc.exe",
+        "calc": "calc.exe",
+        "paint": "mspaint.exe",
+        "chrome": "chrome.exe",
+        "google chrome": "chrome.exe",
+        "edge": "msedge.exe",
+        "microsoft edge": "msedge.exe",
+        "browser": "msedge.exe",
+        "terminal": "wt.exe",          # Windows Terminal
+        "cmd": "cmd.exe",
+        "command prompt": "cmd.exe",
+        "powershell": "powershell.exe",
+        "explorer": "explorer.exe",
+        "file manager": "explorer.exe",
+        "files": "explorer.exe",
+        "wordpad": "wordpad.exe",
+        "word": "winword.exe",
+        "excel": "excel.exe",
+        "settings": "ms-settings:",
+        "control panel": "control.exe",
+        "task manager": "taskmgr.exe",
+        "spotify": "spotify.exe",
+        "discord": "discord.exe",
+        "vlc": "vlc.exe",
+        "vs code": "code.exe",
+        "vscode": "code.exe",
+        "visual studio code": "code.exe",
+    }
+
+    target_app = win_alias.get(cleaned_name.lower(), cleaned_name if cleaned_name.endswith(".exe") or ":" in cleaned_name else cleaned_name + ".exe")
 
     try:
         if system == "Darwin":
-            cmd = ["open", "-a", app_name]
+            subprocess.Popen(["open", "-a", target_app])
         elif system == "Windows":
-            cmd = ["start", "", app_name]
-        else:
-            cmd = ["xdg-open", app_name]
+            launch_errors = []
+            launched = False
 
-        subprocess.Popen(cmd, shell=(system == "Windows"))
+            # Tier 1: os.startfile (most reliable for GUI apps)
+            try:
+                os.startfile(target_app)
+                launched = True
+            except Exception as e1:
+                launch_errors.append(f"startfile: {e1}")
+
+            # Tier 2: subprocess.Popen directly (no shell)
+            if not launched:
+                try:
+                    subprocess.Popen([target_app], shell=False)
+                    launched = True
+                except Exception as e2:
+                    launch_errors.append(f"Popen: {e2}")
+
+            # Tier 3: cmd /c start (shell fallback)
+            if not launched:
+                try:
+                    subprocess.Popen(
+                        ["cmd.exe", "/c", "start", "", target_app],
+                        shell=False,
+                        creationflags=subprocess.CREATE_NO_WINDOW
+                    )
+                    launched = True
+                except Exception as e3:
+                    launch_errors.append(f"cmd start: {e3}")
+
+            if not launched:
+                return {
+                    "status": "error",
+                    "error": f"All launch methods failed for '{target_app}': {'; '.join(launch_errors)}"
+                }
+        else:
+            subprocess.Popen(["xdg-open", target_app])
+
         return {
             "status": "ok",
             "action": action_name,
-            "data": {"app_name": app_name, "system": system},
+            "data": {"app_name": target_app, "raw_prompt": raw_name, "system": system},
         }
     except Exception as e:
         return {
             "status": "error",
-            "error": f"Failed to open application '{app_name}': {str(e)}",
+            "error": f"Failed to open application '{target_app}': {str(e)}",
         }
 
 

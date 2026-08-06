@@ -1,4 +1,5 @@
 import asyncio
+import re
 import time
 from typing import Optional, Callable, Dict, Any, Union
 from pathlib import Path
@@ -64,7 +65,7 @@ class Orchestrator:
             intent_type = IntentType.SENSITIVE_ACTION
         elif any(k in text_lower for k in ["tap phone", "type on phone", "open app on phone", "read screen", "phone tap"]):
             intent_type = IntentType.PHONE_ACTION
-        elif any(k in text_lower for k in ["open", "type", "click", "launch", "screenshot"]):
+        elif any(k in text_lower for k in ["open", "launch", "start", "type", "click", "screenshot", "notepad", "settings", "calc", "chrome", "edge", "cmd"]):
             intent_type = IntentType.DESKTOP_ACTION
         elif any(k in text_lower for k in ["browse", "search", "navigate", "go to"]):
             intent_type = IntentType.BROWSER_ACTION
@@ -119,28 +120,28 @@ class Orchestrator:
         except Exception:
             pass  # Non-blocking history record creation
 
-    async def confirm(self, prompt: str, confirm_fn: Optional[Callable] = None) -> bool:
-        """
-        Confirmation gate helper. Executes confirm_fn callback or defaults to True if None.
-        """
-        if confirm_fn is None:
-            return True
-        try:
-            if asyncio.iscoroutinefunction(confirm_fn):
-                return await confirm_fn(prompt)
-            return bool(confirm_fn(prompt))
-        except Exception:
-            return False
-
     async def process_command(self, text: str, lang: str = "en", confirm_fn: Optional[Callable] = None) -> Dict[str, Any]:
         """
         Processes a single command transcript end-to-end.
+        Fast path for local OS actions (open, launch, type, screenshot).
         """
         start_time = time.time()
-        intent = self.classify_intent(text, lang)
+
+        # Clean leading wake word phrases
+        clean_text = re.sub(
+            r'^(hey|play|hi|ok|hello)?\s*(atlas|ultron)\b\s*',
+            '',
+            text.strip(),
+            flags=re.IGNORECASE
+        ).strip()
+
+        if not clean_text:
+            clean_text = text.strip()
+
+        intent = self.classify_intent(clean_text, lang)
 
         if intent.requires_confirmation:
-            confirmed = await self.confirm(f"This will execute: {text}.", confirm_fn=confirm_fn)
+            confirmed = await self.confirm(f"This will execute: {clean_text}.", confirm_fn=confirm_fn)
             if not confirmed:
                 self.tts.speak("Action cancelled.")
                 await self._log_and_store(
@@ -152,8 +153,85 @@ class Orchestrator:
                 )
                 return {"status": "cancelled", "reason": "not confirmed"}
 
+        text_lower = clean_text.lower()
+
+        # FAST PATH: Desktop Action (sub-50ms local execution, zero API network calls)
+        if intent.type == IntentType.DESKTOP_ACTION:
+            result = self._dispatch_desktop_action(clean_text)
+            app_name = result.get("data", {}).get("app_name", clean_text)
+            spoken_msg = f"Opened {app_name} on your laptop." if result.get("status") == "ok" else f"Could not open {app_name}."
+            result["response"] = spoken_msg
+            result["route"] = "LOCAL-FASTPATH"
+            self.tts.speak(spoken_msg)
+            await self._log_and_store(
+                intent=intent,
+                route_used="desktop_control_fastpath",
+                result=str(result),
+                blocked=False,
+                latency_ms=(time.time() - start_time) * 1000
+            )
+            return result
+
+        # Check for Screen Seeing / Vision commands
+        if any(v in text_lower for v in ["see screen", "what is on my screen", "what's on screen", "look at screen", "analyze screen", "look at laptop", "read desktop"]):
+            try:
+                from PIL import ImageGrab
+                img = ImageGrab.grab()
+                vision_prompt = f"Summarize in 2 crisp sentences for voice readout what is visible on this screen: '{clean_text}'"
+                resp_text, route_used = await self.router.route_vision(vision_prompt, img)
+                self.tts.speak(resp_text)
+                await self._log_and_store(
+                    intent=intent,
+                    route_used=route_used,
+                    result=resp_text,
+                    blocked=False,
+                    latency_ms=(time.time() - start_time) * 1000
+                )
+                return {"status": "ok", "action": "see_screen", "response": resp_text, "route": route_used}
+            except Exception as e:
+                err_msg = f"Screen capture vision analysis error: {e}"
+                self.tts.speak(err_msg)
+                return {"status": "error", "error": err_msg}
+
+        # Check for Search & Summarize commands ("search python news", "open chrome and search...")
+        if "search" in text_lower or "browse" in text_lower or "google" in text_lower:
+            if "chrome" in text_lower or "open" in text_lower:
+                open_app("chrome.exe")
+
+            query = text_lower
+            for prefix in ["open chrome and search", "search for", "search", "browse for", "google", "find"]:
+                if prefix in query:
+                    query = query.split(prefix)[-1].strip()
+
+            if not query:
+                query = text
+
+            search_res = search(query, headless=True)
+            if search_res.get("status") == "ok":
+                page_data = read_page(search_res["data"]["url"], headless=True)
+                content = page_data.get("data", {}).get("content", "")
+                if content:
+                    summary_prompt = f"User asked: '{text}'. Summarize the following search result page in 3 clear sentences for voice read-out:\n\n{content[:3000]}"
+                    summary_text, route_used = await self.router.route(summary_prompt)
+                    resp_str = f"I searched for '{query}'. Here is what I found: {summary_text}"
+                else:
+                    resp_str = f"I opened Chrome and searched for '{query}'."
+            else:
+                resp_str = f"I opened Chrome and searched for '{query}'."
+
+            self.tts.speak(resp_str)
+            await self._log_and_store(
+                intent=intent,
+                route_used="browser_automation",
+                result=resp_str,
+                blocked=False,
+                latency_ms=(time.time() - start_time) * 1000
+            )
+            return {"status": "ok", "action": "search", "response": resp_str, "route": "browser_agent"}
+
         if intent.type == IntentType.QUERY:
-            response, route = await self.router.route(text)
+            voice_prompt = f"Answer concisely in max 2 clear sentences (no code blocks, no markdown formatting, no technical essays) for voice readout: {clean_text}"
+            response, route = await self.router.route(voice_prompt)
             self.tts.speak(response)
             await self._log_and_store(
                 intent=intent,
@@ -166,7 +244,10 @@ class Orchestrator:
 
         elif intent.type == IntentType.DESKTOP_ACTION:
             result = self._dispatch_desktop_action(text)
-            self.tts.speak(f"Executed: {result.get('action', 'desktop action')}")
+            app_name = result.get("data", {}).get("app_name", text)
+            spoken_msg = f"Opened {app_name} on your laptop." if result.get("status") == "ok" else f"Could not open {app_name}."
+            result["response"] = spoken_msg
+            self.tts.speak(spoken_msg)
             await self._log_and_store(
                 intent=intent,
                 route_used="desktop_control",
@@ -178,7 +259,9 @@ class Orchestrator:
 
         elif intent.type == IntentType.SENSITIVE_ACTION:
             result = self._dispatch_sensitive_action(text)
-            self.tts.speak(f"Executed sensitive action: {result.get('action', text)}")
+            spoken_msg = f"Executed sensitive action: {text}"
+            result["response"] = spoken_msg
+            self.tts.speak(spoken_msg)
             await self._log_and_store(
                 intent=intent,
                 route_used="sensitive_control",
@@ -190,7 +273,9 @@ class Orchestrator:
 
         elif intent.type == IntentType.PHONE_ACTION:
             result = await self._dispatch_phone_action(text)
-            self.tts.speak(f"Phone action executed.")
+            spoken_msg = result.get("response", "Executed action on your phone.")
+            result["response"] = spoken_msg
+            self.tts.speak(spoken_msg)
             await self._log_and_store(
                 intent=intent,
                 route_used="phone_control",
@@ -214,15 +299,18 @@ class Orchestrator:
 
     def _dispatch_desktop_action(self, text: str) -> Dict[str, Any]:
         text_lower = text.lower()
-        if "open" in text_lower:
-            app_name = text_lower.split("open")[-1].strip()
-            return open_app(app_name)
+        if any(k in text_lower for k in ["open", "launch", "start", "notepad", "settings", "calc", "calculator", "chrome", "edge", "cmd", "terminal", "explorer", "paint", "word", "excel"]):
+            target = text_lower
+            for verb in ["open", "launch", "start"]:
+                if verb in target:
+                    target = target.split(verb)[-1]
+            return open_app(target.strip())
         elif "type" in text_lower:
             content = text_lower.split("type")[-1].strip()
             return type_text(content)
         elif "screenshot" in text_lower:
             return screenshot()
-        return {"status": "ok", "action": text}
+        return open_app(text_lower.strip())
 
     def _dispatch_sensitive_action(self, text: str) -> Dict[str, Any]:
         text_lower = text.lower()
@@ -244,15 +332,25 @@ class Orchestrator:
         text_lower = text.lower()
         try:
             if "tap phone" in text_lower or "phone tap" in text_lower:
-                return await self.phone.tap(x=500, y=1000)
+                res = await self.phone.tap(x=500, y=1000)
+                res["response"] = "Tapped phone screen."
+                return res
             elif "type on phone" in text_lower:
                 content = text_lower.split("type on phone")[-1].strip()
-                return await self.phone.type_text(content)
+                res = await self.phone.type_text(content)
+                res["response"] = f"Typed '{content}' on phone."
+                return res
             elif "open app on phone" in text_lower:
                 package = text_lower.split("open app on phone")[-1].strip()
-                return await self.phone.open_app(package)
-            elif "read screen" in text_lower:
-                return await self.phone.read_screen()
+                res = await self.phone.open_app(package)
+                res["response"] = f"Opened app {package} on phone."
+                return res
+            elif "read screen" in text_lower or "see phone screen" in text_lower:
+                res = await self.phone.read_screen()
+                nodes = res.get("elements", [])
+                node_summary = f"Phone screen contains {len(nodes)} interactive elements."
+                res["response"] = node_summary
+                return res
             else:
                 return {"status": "error", "error": f"Unknown phone action: {text}"}
         except Exception as e:
