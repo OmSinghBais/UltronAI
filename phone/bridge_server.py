@@ -36,7 +36,6 @@ class PhoneController:
     >>> pc = PhoneController()
     >>> await pc.connect()          # explicit first connect (optional)
     >>> await pc.tap(500, 1200)
-    >>> await pc.scroll("up")
     >>> await pc.disconnect()
     """
 
@@ -47,19 +46,31 @@ class PhoneController:
         connect_timeout: float = 10.0,
         max_reconnect_attempts: int = 3,
     ):
+        self._phone_ip = phone_ip
+        self._port = port
         self.uri = f"ws://{phone_ip}:{port}"
         self.ws: Optional[Any] = None
         self._connect_timeout = connect_timeout
         self._max_reconnect_attempts = max_reconnect_attempts
 
-    # ------------------------------------------------------------------
-    # Connection management
-    # ------------------------------------------------------------------
+    def _ensure_adb_forward(self) -> None:
+        """Helper to ensure adb port forwarding is established for localhost."""
+        if self._phone_ip in ("127.0.0.1", "localhost"):
+            try:
+                import subprocess
+                subprocess.run(
+                    ["adb", "forward", f"tcp:{self._port}", f"tcp:{self._port}"],
+                    capture_output=True,
+                    timeout=3.0,
+                )
+            except Exception:
+                pass  # Ignore if adb is not found or fails in test environment
 
     async def connect(self) -> None:
         """Open (or re-open) the WebSocket connection to the phone."""
         if websockets is None:
             raise ImportError("websockets module is not installed. Run: pip install websockets")
+        self._ensure_adb_forward()
         self.ws = await asyncio.wait_for(
             websockets.connect(self.uri), timeout=self._connect_timeout
         )

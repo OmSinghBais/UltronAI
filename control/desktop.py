@@ -22,6 +22,12 @@ try:
 except ImportError:
     pyautogui = None
 
+try:
+    from control.indicator import show_indicator, hide_indicator
+except ImportError:
+    def show_indicator(label: str = ""): pass
+    def hide_indicator(): pass
+
 
 def open_app(app_name: str) -> Dict[str, Any]:
     """
@@ -63,6 +69,7 @@ def type_text(text: str, interval: float = 0.0) -> Dict[str, Any]:
         return {"status": "error", "error": "Text cannot be None"}
 
     action_name = "type_text"
+    show_indicator("⚡ TYPING")
     try:
         if pyautogui is None:
             return {"status": "error", "error": "pyautogui module is not installed"}
@@ -75,6 +82,8 @@ def type_text(text: str, interval: float = 0.0) -> Dict[str, Any]:
         }
     except Exception as e:
         return {"status": "error", "error": f"Failed to type text: {str(e)}"}
+    finally:
+        hide_indicator()
 
 
 def click(
@@ -87,6 +96,7 @@ def click(
     Clicks mouse at (x, y) coordinates or current position.
     """
     action_name = "click"
+    show_indicator("⚡ CLICKING")
     try:
         if pyautogui is None:
             return {"status": "error", "error": "pyautogui module is not installed"}
@@ -110,6 +120,8 @@ def click(
         }
     except Exception as e:
         return {"status": "error", "error": f"Failed to perform click: {str(e)}"}
+    finally:
+        hide_indicator()
 
 
 def screenshot(output_path: Optional[str] = None) -> Dict[str, Any]:

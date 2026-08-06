@@ -10,7 +10,7 @@ from core.audit_log import AuditLogger
 def test_settings_default_fallback():
     """Verify Settings loads with default values when environment variables are unset."""
     settings = Settings()
-    assert settings.ollama_model == "qwen2.5:3b"
+    assert settings.ollama_model == "llama3.2"
     assert settings.ollama_host == "http://localhost:11434"
     assert settings.confirmation_timeout_s == 15
     assert settings.phone_port == 8765

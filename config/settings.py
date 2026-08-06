@@ -8,7 +8,7 @@ class Settings(BaseSettings):
     Centralized settings for ATLAS application loaded from environment variables and .env file.
     """
     gemini_api_key: str = Field(default="", validation_alias="GEMINI_API_KEY")
-    ollama_model: str = Field(default="qwen2.5:3b", validation_alias="OLLAMA_MODEL")
+    ollama_model: str = Field(default="llama3.2", validation_alias="OLLAMA_MODEL")
     ollama_host: str = Field(default="http://localhost:11434", validation_alias="OLLAMA_HOST")
     wake_word_model_path: str = Field(default="./models/hey_atlas.onnx", validation_alias="WAKE_WORD_MODEL_PATH")
     whisper_model_size: str = Field(default="small", validation_alias="WHISPER_MODEL_SIZE")
