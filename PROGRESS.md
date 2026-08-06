@@ -14,7 +14,7 @@
 | Control (Phases A–C) | Person B | ✅ Complete |
 | Phone (Phases A–D + extras) | Person C | ✅ Complete |
 | Integration (all tracks wired) | All | ✅ Complete |
-| Phase 7 — Hardening & Demo | All | ⚠️ In Progress |
+| Phase 7 — Hardening & Demo | All | ✅ Complete |
 
 ---
 

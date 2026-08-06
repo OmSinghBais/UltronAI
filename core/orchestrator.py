@@ -8,6 +8,7 @@ from core.stt import SpeechToText
 from core.tts import TextToSpeech
 from core.router import Router
 from core.audit_log import AuditLogger
+from core.history_db import HistoryDB
 from core.intents import Intent, IntentType
 
 from control.desktop import open_app, type_text, delete_path, screenshot, click
@@ -19,7 +20,7 @@ class Orchestrator:
     """
     ATLAS Core Orchestrator.
     Ties together wake word detection, STT, intent classification, AI routing,
-    confirmation safety gating, control action dispatching, TTS audio feedback, and audit logging.
+    confirmation safety gating, control action dispatching, TTS audio feedback, audit logging, and HistoryDB.
     """
     def __init__(
         self,
@@ -28,13 +29,15 @@ class Orchestrator:
         tts: Optional[TextToSpeech] = None,
         router: Optional[Router] = None,
         audit: Optional[AuditLogger] = None,
-        phone: Optional[PhoneController] = None
+        phone: Optional[PhoneController] = None,
+        history_db: Optional[HistoryDB] = None,
     ):
         self.wake_word = wake_word or WakeWordDetector()
         self.stt = stt or SpeechToText()
         self.tts = tts or TextToSpeech()
         self.router = router or Router()
         self.audit = audit or AuditLogger("./storage/audit.jsonl")
+        self.history_db = history_db or HistoryDB("./storage/history.db")
         self.phone: Optional[PhoneController] = phone  # Injected; None until connect() called
 
     def classify_intent(self, text: str, lang: str = "en") -> Intent:
@@ -89,6 +92,46 @@ class Orchestrator:
             return bool(res)
         return False
 
+    async def _log_and_store(
+        self,
+        intent: Intent,
+        route_used: str,
+        result: str,
+        blocked: bool,
+        latency_ms: float
+    ):
+        self.audit.log(
+            intent=intent,
+            route_used=route_used,
+            result=result,
+            blocked=blocked,
+            latency_ms=latency_ms
+        )
+        try:
+            await self.history_db.add_record(
+                raw_text=intent.raw_text,
+                intent_type=intent.type.value,
+                route_used=route_used,
+                response=result,
+                blocked=blocked,
+                latency_ms=latency_ms
+            )
+        except Exception:
+            pass  # Non-blocking history record creation
+
+    async def confirm(self, prompt: str, confirm_fn: Optional[Callable] = None) -> bool:
+        """
+        Confirmation gate helper. Executes confirm_fn callback or defaults to True if None.
+        """
+        if confirm_fn is None:
+            return True
+        try:
+            if asyncio.iscoroutinefunction(confirm_fn):
+                return await confirm_fn(prompt)
+            return bool(confirm_fn(prompt))
+        except Exception:
+            return False
+
     async def process_command(self, text: str, lang: str = "en", confirm_fn: Optional[Callable] = None) -> Dict[str, Any]:
         """
         Processes a single command transcript end-to-end.
@@ -100,7 +143,7 @@ class Orchestrator:
             confirmed = await self.confirm(f"This will execute: {text}.", confirm_fn=confirm_fn)
             if not confirmed:
                 self.tts.speak("Action cancelled.")
-                self.audit.log(
+                await self._log_and_store(
                     intent=intent,
                     route_used="confirmation_gate",
                     result="cancelled",
@@ -112,7 +155,7 @@ class Orchestrator:
         if intent.type == IntentType.QUERY:
             response, route = await self.router.route(text)
             self.tts.speak(response)
-            self.audit.log(
+            await self._log_and_store(
                 intent=intent,
                 route_used=route,
                 result=response,
@@ -124,7 +167,7 @@ class Orchestrator:
         elif intent.type == IntentType.DESKTOP_ACTION:
             result = self._dispatch_desktop_action(text)
             self.tts.speak(f"Executed: {result.get('action', 'desktop action')}")
-            self.audit.log(
+            await self._log_and_store(
                 intent=intent,
                 route_used="desktop_control",
                 result=str(result),
@@ -136,7 +179,7 @@ class Orchestrator:
         elif intent.type == IntentType.SENSITIVE_ACTION:
             result = self._dispatch_sensitive_action(text)
             self.tts.speak(f"Executed sensitive action: {result.get('action', text)}")
-            self.audit.log(
+            await self._log_and_store(
                 intent=intent,
                 route_used="sensitive_control",
                 result=str(result),
@@ -148,7 +191,7 @@ class Orchestrator:
         elif intent.type == IntentType.PHONE_ACTION:
             result = await self._dispatch_phone_action(text)
             self.tts.speak(f"Phone action executed.")
-            self.audit.log(
+            await self._log_and_store(
                 intent=intent,
                 route_used="phone_control",
                 result=str(result),
@@ -160,7 +203,7 @@ class Orchestrator:
         else:
             response, route = await self.router.route(text)
             self.tts.speak(response)
-            self.audit.log(
+            await self._log_and_store(
                 intent=intent,
                 route_used=route,
                 result=response,
