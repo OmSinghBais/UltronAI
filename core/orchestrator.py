@@ -63,7 +63,7 @@ class Orchestrator:
 
         if is_sensitive:
             intent_type = IntentType.SENSITIVE_ACTION
-        elif any(k in text_lower for k in ["tap phone", "type on phone", "open app on phone", "read screen", "phone tap"]):
+        elif any(k in text_lower for k in ["tap phone", "type on phone", "open app on phone", "read screen", "phone tap", "auto reply", "reply as me"]):
             intent_type = IntentType.PHONE_ACTION
         elif any(k in text_lower for k in ["open", "launch", "start", "type", "click", "screenshot", "notepad", "settings", "calc", "chrome", "edge", "cmd"]):
             intent_type = IntentType.DESKTOP_ACTION
@@ -350,6 +350,14 @@ class Orchestrator:
                 nodes = res.get("elements", [])
                 node_summary = f"Phone screen contains {len(nodes)} interactive elements."
                 res["response"] = node_summary
+                return res
+            elif "auto reply" in text_lower or "reply as me" in text_lower:
+                from core.style_engine import UserStyleMimicEngine
+                from phone.chat_auto_reply import ChatAutoReplier
+                replier = ChatAutoReplier(phone_controller=self.phone)
+                incoming = text_lower.split("to")[-1].strip() if "to" in text_lower else text
+                res = await replier.reply_to_chat_notification({"sender": "Chat", "body": incoming, "app": "Phone"}, force_send=True)
+                res["response"] = f"Auto-replied as you: '{res.get('generated_reply', '')}'"
                 return res
             else:
                 return {"status": "error", "error": f"Unknown phone action: {text}"}
