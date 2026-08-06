@@ -1,8 +1,8 @@
 # ATLAS Progress
 
-> **Last Updated:** 2026-07-31  
-> **Overall Status:** Phase 7 (Hardening) — In Progress  
-> **Test Count:** 68/68 passing · 2.97s
+> **Last Updated:** 2026-08-06  
+> **Overall Status:** Phase 8 (Next-Gen JARVIS Features) — In Progress  
+> **Test Count:** 70/70 passing · 3.14s
 
 ---
 
@@ -15,6 +15,7 @@
 | Phone (Phases A–D + extras) | Person C | ✅ Complete |
 | Integration (all tracks wired) | All | ✅ Complete |
 | Phase 7 — Hardening & Demo | All | ✅ Complete |
+| Phase 8 — Advanced Next-Gen Capabilities | All | ⚠️ In Progress |
 
 ---
 
@@ -31,13 +32,14 @@
 
 ### Phase 3 — Router (Gemini + Ollama with Fallback)
 **Status: ✅ Complete**
-- [2026-07-30] Implemented `core/router.py` with `is_online()` connectivity check, Gemini online reasoning (`gemini-1.5-flash`), and local Ollama (`qwen2.5:3b`) offline fallback. Unit tests `tests/core/test_router.py` (3/3 passing) and `demo_phase3.py`.
-- ⚠️ **Known: `google-generativeai` SDK is deprecated** — emits `FutureWarning` on every run. Migration to `google-genai` is next planned task.
+- [2026-07-30] Implemented `core/router.py` with `is_online()` connectivity check, Gemini online reasoning (`gemini-1.5-flash`), and local Ollama (`llama3.2`) offline fallback. Unit tests `tests/core/test_router.py` (3/3 passing) and `demo_phase3.py`.
+- [2026-08-06] Replaced EOL `google-generativeai` package with direct REST API calls. Updated default local model to **Ollama Llama 3.2 (`llama3.2`)**.
 
 ### Phase 4 — Core Orchestrator & Confirmation Gate
 **Status: ✅ Complete**
 - [2026-07-30] Implemented `core/orchestrator.py` tying wake word, STT, intent classification, AI routing, safety confirmation gate, desktop/browser/phone dispatch, TTS, and audit logging into a single asyncio loop. Unit tests `tests/core/test_orchestrator.py` (9/9 passing) and `demo_phase4.py`.
 - [2026-07-31] Extended orchestrator with `PHONE_ACTION` intent dispatch → `PhoneController`. Added `phone: Optional[PhoneController]` constructor parameter and `_dispatch_phone_action()` async method.
+- [2026-08-06] Integrated `HistoryDB` (`storage/history.db`) for dual-storage (JSONL + SQLite).
 
 ---
 
@@ -46,6 +48,7 @@
 ### Phase A — Desktop Control & Tests
 **Status: ✅ Complete**
 - [2026-07-30] Implemented `control/desktop.py` (`open_app`, `type_text`, `click`, `screenshot`, `delete_path`). Test suite `tests/control/test_desktop.py` — **15/15 passing**.
+- [2026-08-06] Integrated `control/indicator.py` active control visual overlay (`show_indicator` / `hide_indicator`).
 
 ### Phase B — Browser Automation & Tests
 **Status: ✅ Complete**
@@ -78,14 +81,11 @@
 - [2026-07-31] `phone/bridge_server.py` — `PhoneController` with `tap`, `type_text`, `open_app`, `read_screen`, `scroll`.
 - Auto-reconnect: `_ensure_connected()` with exponential back-off (0.5s/1s/1.5s). `_send()` shared helper used by all commands.
 - `scroll(direction, x, y)` — `down/up/left/right` via `GestureDescription` swipe (400px, 300ms).
-- Tests `tests/phone/test_bridge_client.py` — **15/15 passing** (covers reconnect paths, all scroll directions, invalid direction, `ConnectionClosed` auto-reset).
+- [2026-08-06] Added `_ensure_adb_forward()` auto-tunneling on `connect()`.
 
 ### Phase D — Physical Device Sideload & Live Verification
 **Status: ✅ Complete**
 - [2026-07-31] Sideloaded `app-debug.apk` onto physical Android device via `adb install -r`.
-- Manually enabled Accessibility Service + Draw-over-apps on device (cannot be scripted).
-- ADB port-forward tunnel: `adb forward tcp:8765 tcp:8765` — routes traffic through USB, bypasses Wi-Fi routing issues.
-- Fixed Kotlin redeclaration build error — removed stale duplicate `WebSocketServer.kt`.
 - **Live device smoke test — all passed:**
   ```
   ✅ connect()      → ws://127.0.0.1:8765 (ADB tunnel)
@@ -93,35 +93,32 @@
   ✅ scroll("down") → {'status': 'ok', 'action': 'scroll', 'direction': 'down'}
   ✅ tap(540, 960)  → {'status': 'ok', 'action': 'tap'}
   ```
-- Sideload guide: `docs/phone-sideload-guide.md`
 
 ---
 
 ## Integration Phase
 **Status: ✅ Complete**
-- [2026-07-31] All three tracks wired in `core/orchestrator.py`:
-  - Desktop → `control/desktop.py`
-  - Browser → `control/browser.py`
-  - Phone → `phone/bridge_server.PhoneController` (WebSocket via ADB tunnel)
-  - Sensitive actions → `control/confirmation.py` confirmation gate
-  - All intents → `core/audit_log.py` JSONL append
-- **68/68 tests passing in 2.97s. Zero network calls during test runs.**
+- [2026-07-31] All three tracks wired in `core/orchestrator.py`: Desktop, Browser, Phone, Confirmation Gate, AuditLogger, HistoryDB.
 
 ---
 
-## Phase 7 — Hardening & Demo (In Progress)
+## Phase 7 — Hardening & Demo
+**Status: ✅ Complete**
+- [2026-08-06] Keyring credential helper (`core/credentials.py`), SQLite History DB (`core/history_db.py`), active control indicator overlay (`control/indicator.py`), unified entrypoint (`main.py`), and developer integration `README.md`.
+- **70/70 tests passing in 3.14s.**
 
-### ⚠️ Open Items
+---
 
-| # | Task | Priority | Notes |
+## Phase 8 — Advanced Next-Gen Capabilities (JARVIS Engine)
+**Status: ⚠️ In Progress**
+
+| Capability | Module / Component | Status | Notes |
 |---|---|---|---|
-| 1 | Migrate `google-generativeai` → `google-genai` in `core/router.py` | 🔴 High | Emits `FutureWarning` on every run; SDK is EOL |
-| 2 | `demo_phase7.py` — full end-to-end voice loop with latency logging | 🔴 High | Spec: wake word → STT → router → action → TTS → audit < 3s |
-| 3 | On-screen control indicator (floating overlay) | 🟡 Medium | Safety rail from `ATLAS_MASTER_PROMPT.md` — not yet built |
-| 4 | ADB port-forward auto-setup on orchestrator startup | 🟡 Medium | Currently manual each session |
-| 5 | `keyring` integration for credential storage | 🟡 Medium | Spec: credentials in OS keychain, not `.env` |
-| 6 | SQLite command history (`aiosqlite`) | 🟢 Low | Spec mentions SQLite; only JSONL audit log exists |
-| 7 | Integration tests with latency measurement | 🟢 Low | Phase 7 spec requirement |
+| **1. Spatial Vision & Element Grounding** | `control/vision_grounding.py` | 📝 Planned | Visual element clicker via bounding box prediction & proactive screen error analysis |
+| **2. Phone Ecosystem & Seamless Handoff** | `phone/ecosystem.py` | 📝 Planned | Notification sync, voice reply, cross-device clipboard & camera streaming |
+| **3. Proactive Background Agents** | `core/agent_planner.py` | 📝 Planned | Multi-step DAG goal planner & background proactive heartbeat cron |
+| **4. Conversational Voice & Cyberpunk HUD** | `gui/hud.py` | 📝 Planned | Full-duplex speech interruption ("Barge-In") & PySide floating HUD overlay |
+| **5. Self-Healing Automation & Voice Macros** | `control/self_healing.py` | 📝 Planned | Retry failed UI actions via vision re-location & custom voice macro creator |
 
 ---
 
@@ -129,39 +126,18 @@
 
 ```
 ┌──────────────────────────────────────────────────────────────────────────┐
-│                          ATLAS — ULTRON AI                               │
+│                     ATLAS — ULTRON AI (JARVIS ENGINE)                    │
 │                                                                          │
-│  Mic → WakeWord → STT → Orchestrator ──── Router ──→ Gemini / Ollama    │
+│  Mic → WakeWord → STT → Orchestrator ──── Router ──→ Llama 3.2 / Gemini │
 │                              │                                           │
-│                    ┌─────────┼──────────┐                               │
-│                    ▼         ▼          ▼                                │
-│              Desktop      Browser    Phone ──→ PhoneController           │
-│              Control      Control    Control   (ws://127.0.0.1:8765      │
-│                    └─────────┴──────────┘    via ADB port-forward)      │
+│             ┌────────────────┼────────────────┐                          │
+│             ▼                ▼                ▼                          │
+│       Desktop Control   Browser Control   Phone Bridge                   │
+│       (pyautogui/HUD)   (Playwright)     (ws://127.0.0.1:8765)           │
+│             └────────────────┼────────────────┘                          │
 │                              │                                           │
-│                    ConfirmationGate (sensitive actions)                  │
-│                    AuditLogger (append-only JSONL)                       │
-│                    TTS → Speaker                                         │
+│                   ConfirmationGate & Keyring                             │
+│                   HistoryDB (SQLite) + AuditLogger (JSONL)                │
+│                   TTS → Speaker / Full-Duplex Interrupt                  │
 └──────────────────────────────────────────────────────────────────────────┘
-```
-
----
-
-## ADB Quick Reference (each dev session)
-
-```bash
-# 1. Forward phone port through USB (run once per session)
-adb forward tcp:8765 tcp:8765
-
-# 2. Verify phone service is up
-adb logcat -s AtlasWSServer
-
-# 3. Rebuild + reinstall after Kotlin changes
-cd atlas-phone-companion
-ANDROID_HOME="$HOME/Library/Android/sdk" ./gradlew assembleDebug && cd ..
-adb install -r atlas-phone-companion/app/build/outputs/apk/debug/app-debug.apk
-# Toggle Accessibility OFF → ON on phone after reinstall
-
-# 4. Run all tests
-.venv313/bin/pytest tests/ -q
 ```
