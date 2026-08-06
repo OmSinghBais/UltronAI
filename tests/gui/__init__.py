@@ -1,0 +1,3 @@
+"""
+ATLAS GUI Tests Package
+"""

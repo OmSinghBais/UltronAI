@@ -12,6 +12,12 @@ class TextToSpeech:
     def __init__(self, voice_model_path: Optional[str] = None):
         self.voice_model_path = voice_model_path
         self.piper_voice = None
+        self.interrupted = False
+
+    def interrupt(self) -> None:
+        """Triggers barge-in speech interruption to immediately stop TTS playback."""
+        self.interrupted = True
+        print("[TTS Interrupted] Barge-in speech cancellation triggered.")
 
     def _load_voice(self) -> None:
         """Lazy load Piper TTS voice model if available."""
